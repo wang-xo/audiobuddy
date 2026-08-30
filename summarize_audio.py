@@ -1,7 +1,7 @@
 """Validate inputs and output paths for the AudioBuddy audio summarizer.
 
-Phase 1-2 writes placeholder Markdown only. Later stages will replace the
-placeholder with a Gemini-generated summary.
+Phase 1-3 uploads the audio to Gemini and sends a minimal model request. Later
+stages will replace the placeholder Markdown with a Gemini-generated summary.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from pathlib import Path
 
 
 API_KEY_NAME = "GEMINI_API_KEY"
+GEMINI_MODELS = ("gemini-3.7-flash", "gemini-3.6-flash")
 OUTPUT_DIR = Path(r"D:\Documents\Personal\audio\out")
 FILENAME_TIMESTAMP_PATTERN = re.compile(
     r"^(?P<date>\d{4}-\d{2}-\d{2}) (?P<time>\d{2}_\d{2}_\d{2})$"
@@ -24,6 +25,10 @@ FILENAME_TIMESTAMP_PATTERN = re.compile(
 
 class ValidationError(Exception):
     """Raised when local CLI validation fails."""
+
+
+class GeminiIntegrationError(Exception):
+    """Raised when the Gemini SDK, upload, or model check fails."""
 
 
 @dataclass(frozen=True)
@@ -147,6 +152,70 @@ def write_placeholder_summary(audio_input: AudioInput) -> Path:
     return output_path
 
 
+def is_transient_gemini_error(error: Exception) -> bool:
+    error_text = str(error).lower()
+    return any(
+        marker in error_text
+        for marker in (
+            "503",
+            "500",
+            "429",
+            "unavailable",
+            "high demand",
+            "api_error",
+            "too_many_requests",
+        )
+    )
+
+
+def check_gemini_audio_integration(audio_input: AudioInput) -> str:
+    try:
+        from google import genai
+    except ImportError as error:
+        raise GeminiIntegrationError(
+            "Missing dependency 'google-genai'. Install requirements.txt first."
+        ) from error
+
+    client = genai.Client(api_key=os.environ[API_KEY_NAME])
+
+    try:
+        uploaded_file = client.files.upload(file=audio_input.path)
+    except Exception as error:
+        raise GeminiIntegrationError(f"Audio upload failed: {error}") from error
+
+    last_error: Exception | None = None
+    for model in GEMINI_MODELS:
+        try:
+            response = client.interactions.create(
+                model=model,
+                input=[
+                    {
+                        "type": "text",
+                        "text": (
+                            "Integration check only: confirm in one short sentence that "
+                            "you can access this audio file. Do not summarize it yet."
+                        ),
+                    },
+                    {
+                        "type": "audio",
+                        "uri": uploaded_file.uri,
+                        "mime_type": uploaded_file.mime_type,
+                    },
+                ],
+            )
+            response_text = getattr(response, "output_text", "") or ""
+            return f"{model}: {response_text.strip()}"
+        except Exception as error:
+            last_error = error
+            if not is_transient_gemini_error(error):
+                break
+
+    if last_error is None:
+        raise GeminiIntegrationError("No Gemini model was configured.")
+
+    raise GeminiIntegrationError(str(last_error)) from last_error
+
+
 def main() -> int:
     args = parse_args()
 
@@ -154,19 +223,25 @@ def main() -> int:
         load_dotenv(Path(__file__).resolve().parent / ".env")
         require_api_key()
         audio_input = validate_audio_file(args.audio_file)
+        gemini_check = check_gemini_audio_integration(audio_input)
         output_path = write_placeholder_summary(audio_input)
     except ValidationError as error:
         print(f"Failure: {error}", file=sys.stderr)
+        return 1
+    except GeminiIntegrationError as error:
+        print(f"Failure: Gemini API integration failed: {error}", file=sys.stderr)
         return 1
     except OSError as error:
         print(f"Failure: Could not write summary file: {error}", file=sys.stderr)
         return 1
 
-    print("Success: placeholder summary created.")
+    print("Success: Gemini audio integration check passed.")
     print(f"Audio file: {audio_input.path}")
     print(f"Summary file: {output_path}")
     print(f"Date: {audio_input.date_text}")
     print(f"Time: {audio_input.time_text}")
+    if gemini_check:
+        print(f"Gemini check: {gemini_check}")
     return 0
 
 
