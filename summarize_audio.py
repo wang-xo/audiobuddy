@@ -1,7 +1,7 @@
-"""Validate inputs for the AudioBuddy Phase 1 audio summarizer.
+"""Validate inputs and output paths for the AudioBuddy audio summarizer.
 
-Phase 1-1 intentionally stops after local validation. Later stages will add
-output-path handling and Gemini API calls.
+Phase 1-2 writes placeholder Markdown only. Later stages will replace the
+placeholder with a Gemini-generated summary.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from pathlib import Path
 
 
 API_KEY_NAME = "GEMINI_API_KEY"
+OUTPUT_DIR = Path(r"D:\Documents\Personal\audio\out")
 FILENAME_TIMESTAMP_PATTERN = re.compile(
     r"^(?P<date>\d{4}-\d{2}-\d{2}) (?P<time>\d{2}_\d{2}_\d{2})$"
 )
@@ -92,6 +93,60 @@ def validate_audio_file(audio_file: str) -> AudioInput:
     return AudioInput(path=audio_path, date_text=date_text, time_text=time_text)
 
 
+def unique_summary_path(audio_path: Path, output_dir: Path) -> Path:
+    summary_stem = f"{audio_path.stem}-summary"
+    candidate = output_dir / f"{summary_stem}.md"
+    counter = 1
+
+    while candidate.exists():
+        candidate = output_dir / f"{summary_stem}-{counter}.md"
+        counter += 1
+
+    return candidate
+
+
+def build_placeholder_markdown(audio_input: AudioInput) -> str:
+    """Create temporary Markdown so Phase 1-2 can test file output."""
+    return "\n".join(
+        [
+            "# Audio Summary",
+            "",
+            "## Date and Time",
+            "",
+            f"- Date: {audio_input.date_text}",
+            f"- Time: {audio_input.time_text}",
+            "",
+            "## Executive Summary",
+            "",
+            "_Placeholder pending Gemini integration._",
+            "",
+            "## Verbose Summary",
+            "",
+            "_Placeholder pending Gemini integration._",
+            "",
+            "## Key Discussion Points and Decisions",
+            "",
+            "_Placeholder pending Gemini integration._",
+            "",
+            "## Action Items",
+            "",
+            "_Placeholder pending Gemini integration._",
+            "",
+            "## Open Questions",
+            "",
+            "_Placeholder pending Gemini integration._",
+            "",
+        ]
+    )
+
+
+def write_placeholder_summary(audio_input: AudioInput) -> Path:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = unique_summary_path(audio_input.path, OUTPUT_DIR)
+    output_path.write_text(build_placeholder_markdown(audio_input), encoding="utf-8")
+    return output_path
+
+
 def main() -> int:
     args = parse_args()
 
@@ -99,12 +154,17 @@ def main() -> int:
         load_dotenv(Path(__file__).resolve().parent / ".env")
         require_api_key()
         audio_input = validate_audio_file(args.audio_file)
+        output_path = write_placeholder_summary(audio_input)
     except ValidationError as error:
         print(f"Failure: {error}", file=sys.stderr)
         return 1
+    except OSError as error:
+        print(f"Failure: Could not write summary file: {error}", file=sys.stderr)
+        return 1
 
-    print("Success: local validation passed.")
+    print("Success: placeholder summary created.")
     print(f"Audio file: {audio_input.path}")
+    print(f"Summary file: {output_path}")
     print(f"Date: {audio_input.date_text}")
     print(f"Time: {audio_input.time_text}")
     return 0
