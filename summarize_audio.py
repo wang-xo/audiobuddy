@@ -1,7 +1,7 @@
-"""Validate inputs and output paths for the AudioBuddy audio summarizer.
+"""Summarize one local MP3 audio file with Gemini.
 
-Phase 1-3 uploads the audio to Gemini and sends a minimal model request. Later
-stages will replace the placeholder Markdown with a Gemini-generated summary.
+Phase 1-4 validates one MP3 input, uploads it to Gemini, asks for a fixed
+Markdown summary, and saves the result in the configured output folder.
 """
 
 from __future__ import annotations
@@ -36,6 +36,12 @@ class AudioInput:
     path: Path
     date_text: str
     time_text: str
+
+
+@dataclass(frozen=True)
+class GeminiSummary:
+    markdown: str
+    model: str
 
 
 def parse_args() -> argparse.Namespace:
@@ -110,45 +116,54 @@ def unique_summary_path(audio_path: Path, output_dir: Path) -> Path:
     return candidate
 
 
-def build_placeholder_markdown(audio_input: AudioInput) -> str:
-    """Create temporary Markdown so Phase 1-2 can test file output."""
-    return "\n".join(
-        [
-            "# Audio Summary",
-            "",
-            "## Date and Time",
-            "",
-            f"- Date: {audio_input.date_text}",
-            f"- Time: {audio_input.time_text}",
-            "",
-            "## Executive Summary",
-            "",
-            "_Placeholder pending Gemini integration._",
-            "",
-            "## Verbose Summary",
-            "",
-            "_Placeholder pending Gemini integration._",
-            "",
-            "## Key Discussion Points and Decisions",
-            "",
-            "_Placeholder pending Gemini integration._",
-            "",
-            "## Action Items",
-            "",
-            "_Placeholder pending Gemini integration._",
-            "",
-            "## Open Questions",
-            "",
-            "_Placeholder pending Gemini integration._",
-            "",
-        ]
-    )
+def build_summary_prompt(audio_input: AudioInput) -> str:
+    return f"""Transcribe, translate as necessary, and summarize the attached audio in English.
+
+Use the filename-derived date and time below. Do not infer a different date or time from the audio unless the audio explicitly contradicts it.
+
+Date: {audio_input.date_text}
+Time: {audio_input.time_text}
+
+Return Markdown only. Do not wrap the Markdown in a code fence.
+
+Use exactly this heading structure:
+
+# Audio Summary
+
+## Date and Time
+
+## Executive Summary
+
+## Verbose Summary
+
+## Key Discussion Points and Decisions
+
+## Action Items
+
+## Open Questions
+
+Under Date and Time, include bullet lines for Date and Time.
+Under Action Items, include the owner where identifiable. Use "unknown" when no owner is identifiable.
+If a section has no identifiable content, write "None identified."
+"""
 
 
-def write_placeholder_summary(audio_input: AudioInput) -> Path:
+def clean_markdown_response(markdown: str) -> str:
+    cleaned = markdown.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        cleaned = "\n".join(lines).strip()
+    return cleaned + "\n"
+
+
+def write_summary(audio_input: AudioInput, markdown: str) -> Path:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     output_path = unique_summary_path(audio_input.path, OUTPUT_DIR)
-    output_path.write_text(build_placeholder_markdown(audio_input), encoding="utf-8")
+    output_path.write_text(markdown, encoding="utf-8")
     return output_path
 
 
@@ -168,7 +183,7 @@ def is_transient_gemini_error(error: Exception) -> bool:
     )
 
 
-def check_gemini_audio_integration(audio_input: AudioInput) -> str:
+def generate_gemini_summary(audio_input: AudioInput) -> GeminiSummary:
     try:
         from google import genai
     except ImportError as error:
@@ -191,10 +206,7 @@ def check_gemini_audio_integration(audio_input: AudioInput) -> str:
                 input=[
                     {
                         "type": "text",
-                        "text": (
-                            "Integration check only: confirm in one short sentence that "
-                            "you can access this audio file. Do not summarize it yet."
-                        ),
+                        "text": build_summary_prompt(audio_input),
                     },
                     {
                         "type": "audio",
@@ -204,7 +216,9 @@ def check_gemini_audio_integration(audio_input: AudioInput) -> str:
                 ],
             )
             response_text = getattr(response, "output_text", "") or ""
-            return f"{model}: {response_text.strip()}"
+            if not response_text.strip():
+                raise GeminiIntegrationError("Gemini returned an empty summary.")
+            return GeminiSummary(markdown=clean_markdown_response(response_text), model=model)
         except Exception as error:
             last_error = error
             if not is_transient_gemini_error(error):
@@ -223,8 +237,8 @@ def main() -> int:
         load_dotenv(Path(__file__).resolve().parent / ".env")
         require_api_key()
         audio_input = validate_audio_file(args.audio_file)
-        gemini_check = check_gemini_audio_integration(audio_input)
-        output_path = write_placeholder_summary(audio_input)
+        summary = generate_gemini_summary(audio_input)
+        output_path = write_summary(audio_input, summary.markdown)
     except ValidationError as error:
         print(f"Failure: {error}", file=sys.stderr)
         return 1
@@ -235,13 +249,12 @@ def main() -> int:
         print(f"Failure: Could not write summary file: {error}", file=sys.stderr)
         return 1
 
-    print("Success: Gemini audio integration check passed.")
+    print("Success: summary created.")
     print(f"Audio file: {audio_input.path}")
     print(f"Summary file: {output_path}")
     print(f"Date: {audio_input.date_text}")
     print(f"Time: {audio_input.time_text}")
-    if gemini_check:
-        print(f"Gemini check: {gemini_check}")
+    print(f"Gemini model: {summary.model}")
     return 0
 
 
