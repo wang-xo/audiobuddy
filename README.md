@@ -112,6 +112,7 @@ Unknown action item owners are labeled `unknown`.
 - Missing API key: set `GEMINI_API_KEY` in the environment or `.env`.
 - Nonexistent input file: check the file path.
 - Unsupported file: Phase 1 accepts only `.mp3` files.
+- Missing FFmpeg: install FFmpeg and ensure `ffmpeg` and `ffprobe` are on PATH.
 - Gemini API failure: retry later or check quota, billing, and API-key access.
 
 ## Phase 2 Ideas

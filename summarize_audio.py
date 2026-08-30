@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -30,6 +31,10 @@ class ValidationError(Exception):
 
 class PromptError(Exception):
     """Raised when the prompt template cannot be loaded or rendered."""
+
+
+class AudioToolError(Exception):
+    """Raised when required local audio processing tools are unavailable."""
 
 
 class GeminiIntegrationError(Exception):
@@ -107,6 +112,19 @@ def validate_audio_file(audio_file: str) -> AudioInput:
 
     date_text, time_text = parse_filename_timestamp(audio_path)
     return AudioInput(path=audio_path, date_text=date_text, time_text=time_text)
+
+
+def require_audio_tools() -> None:
+    missing_tools = [tool for tool in ("ffmpeg", "ffprobe") if shutil.which(tool) is None]
+    if not missing_tools:
+        return
+
+    missing = ", ".join(missing_tools)
+    raise AudioToolError(
+        f"Missing required audio tool(s): {missing}. Install FFmpeg and make sure "
+        "ffmpeg and ffprobe are on PATH. On Windows, try: winget install Gyan.FFmpeg "
+        "then reopen your terminal."
+    )
 
 
 def unique_summary_path(audio_path: Path, output_dir: Path) -> Path:
@@ -229,12 +247,16 @@ def main() -> int:
         load_dotenv(Path(__file__).resolve().parent / ".env")
         require_api_key()
         audio_input = validate_audio_file(args.audio_file)
+        require_audio_tools()
         summary = generate_gemini_summary(audio_input)
         output_path = write_summary(audio_input, summary.markdown)
     except ValidationError as error:
         print(f"Failure: {error}", file=sys.stderr)
         return 1
     except PromptError as error:
+        print(f"Failure: {error}", file=sys.stderr)
+        return 1
+    except AudioToolError as error:
         print(f"Failure: {error}", file=sys.stderr)
         return 1
     except GeminiIntegrationError as error:
