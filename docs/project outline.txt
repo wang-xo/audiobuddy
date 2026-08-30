@@ -1,0 +1,42 @@
+Build a very small local Python CLI tool for summarizing audio files using the Google Gemini API.
+
+Usage:
+
+python summarize_audio.py /path/to/audio.m4a
+
+Phase 1 Requirements:
+
+1. Accept a local audio file path as a command-line argument.
+2. Read GEMINI_API_KEY from the environment. Never hardcode credentials.
+3. Upload the audio using the current Google GenAI Python SDK / Gemini Files API.
+4. Send the uploaded audio to an appropriate current Gemini Flash model.
+5. Ask Gemini to translate as necessary and produce in English:
+   - date and time
+   - executive summary
+   - verbose summary
+   - key discussion points and decisions
+   - action items, including owner where identifiable (unidentified owners may be marked with the label "unknown")
+   - open questions
+6. Save the result as Markdown <original-name>-summary.md. The summary md should preserve a fixed heading structure according to point 5 above. If filenames conflict automatically create a numbered alternative.
+7. Handle common errors clearly, including:
+   - missing API key
+   - nonexistent input file
+   - unsupported file
+   - Gemini API failure
+8. Add requirements.txt and a short README with setup and usage instructions.
+9. Keep the implementation simple, readable, and well commented.
+10. Do not build a web UI, database, authentication system, or other infrastructure.
+
+Before coding, inspect the current Google Gemini API documentation so you use the current SDK and model names rather than relying on old examples.
+
+Notes:
+- Assume the input audio files are mp3 format in this folder D:\Documents\Personal\audio\in
+- Parse the filename for the date and time. If the audio filename is 2026-08-30 11_10_13.mp3 then the date is 30 August 2026 and the time is 11:10:13.
+- Output md file should be in created/updated in this folder: D:\Documents\Personal\audio\out
+- Do not accept non-mp3 files and warn if file format is different than expected
+- CLI output should indicate success or failure with reason.
+
+Future iterations (preserve these in the README as Phase 2, do not work on them until Phase 1 is complete):
+A. Parse the audio file and potentially split it into smaller chunks. For example, using mp3splt to separate into 30-minute segments to stay within any API / file size limitations.
+B. Simplify the UX. Accept a command to scan the current input directory, identify any new audio files, and work with only the new ones. 
+C. Summary tracking. Record the filenames, timestamps, and summaries in one master file. Append new outputs as relevant.
