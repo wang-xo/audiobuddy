@@ -18,6 +18,7 @@ from pathlib import Path
 API_KEY_NAME = "GEMINI_API_KEY"
 GEMINI_MODELS = ("gemini-3.7-flash", "gemini-3.6-flash")
 OUTPUT_DIR = Path(r"D:\Documents\Personal\audio\out")
+PROMPT_PATH = Path(__file__).resolve().parent / "prompt.md"
 FILENAME_TIMESTAMP_PATTERN = re.compile(
     r"^(?P<date>\d{4}-\d{2}-\d{2}) (?P<time>\d{2}_\d{2}_\d{2})$"
 )
@@ -25,6 +26,10 @@ FILENAME_TIMESTAMP_PATTERN = re.compile(
 
 class ValidationError(Exception):
     """Raised when local CLI validation fails."""
+
+
+class PromptError(Exception):
+    """Raised when the prompt template cannot be loaded or rendered."""
 
 
 class GeminiIntegrationError(Exception):
@@ -116,36 +121,23 @@ def unique_summary_path(audio_path: Path, output_dir: Path) -> Path:
     return candidate
 
 
+def load_prompt_template(prompt_path: Path = PROMPT_PATH) -> str:
+    if not prompt_path.is_file():
+        raise PromptError(f"Prompt file not found: {prompt_path}")
+
+    template = prompt_path.read_text(encoding="utf-8").strip()
+    if not template:
+        raise PromptError(f"Prompt file is empty: {prompt_path}")
+
+    return template
+
+
 def build_summary_prompt(audio_input: AudioInput) -> str:
-    return f"""Transcribe, translate as necessary, and summarize the attached audio in English.
-
-Use the filename-derived date and time below. Do not infer a different date or time from the audio unless the audio explicitly contradicts it.
-
-Date: {audio_input.date_text}
-Time: {audio_input.time_text}
-
-Return Markdown only. Do not wrap the Markdown in a code fence.
-
-Use exactly this heading structure:
-
-# Audio Summary
-
-## Date and Time
-
-## Executive Summary
-
-## Verbose Summary
-
-## Key Discussion Points and Decisions
-
-## Action Items
-
-## Open Questions
-
-Under Date and Time, include bullet lines for Date and Time.
-Under Action Items, include the owner where identifiable. Use "unknown" when no owner is identifiable.
-If a section has no identifiable content, write "None identified."
-"""
+    template = load_prompt_template()
+    try:
+        return template.format(date=audio_input.date_text, time=audio_input.time_text)
+    except KeyError as error:
+        raise PromptError(f"Unknown placeholder in prompt.md: {{{error.args[0]}}}") from error
 
 
 def clean_markdown_response(markdown: str) -> str:
@@ -240,6 +232,9 @@ def main() -> int:
         summary = generate_gemini_summary(audio_input)
         output_path = write_summary(audio_input, summary.markdown)
     except ValidationError as error:
+        print(f"Failure: {error}", file=sys.stderr)
+        return 1
+    except PromptError as error:
         print(f"Failure: {error}", file=sys.stderr)
         return 1
     except GeminiIntegrationError as error:
