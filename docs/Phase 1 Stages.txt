@@ -1,0 +1,37 @@
+
+For Phase 1, I’d build and test in these breakpoints:
+
+1. **CLI + local validation**
+   - Accept one file path argument.
+   - Reject missing path, nonexistent file, and non-`.mp3`.
+   - Parse filename date/time from `YYYY-MM-DD HH_MM_SS.mp3`.
+   - Confirm `.env` / `GEMINI_API_KEY` can be loaded.
+   - Test without calling Gemini yet.
+
+2. **Output filename handling**
+   - Generate output path in `D:\Documents\Personal\audio\out`.
+   - Use `<original-name>-summary.md`.
+   - If it exists, create something like `<original-name>-summary-1.md`.
+   - Test with dummy content only.
+
+3. **Gemini SDK integration**
+   - Verify current Google GenAI docs first.
+   - Install/use the current package.
+   - Upload one small `.mp3` through the Files API.
+   - Confirm the upload succeeds and the file object can be passed to a model.
+
+4. **Prompt + Markdown generation**
+   - Send the uploaded audio plus parsed date/time to Gemini Flash.
+   - Ask for the fixed Markdown structure.
+   - Save the actual response to the output file.
+   - Check that headings match the outline.
+
+5. **End-to-end smoke test**
+   - Run:
+     ```powershell
+     python summarize_audio.py "D:\Documents\Personal\audio\in\2026-08-30 11_10_13.mp3"
+     ```
+   - Confirm clear success/failure message.
+   - Confirm one Markdown file appears in `D:\Documents\Personal\audio\out`.
+
+I’d keep the first implementation very linear: argument parsing, validation helpers, Gemini call, write file. Once one small audio file works reliably, we can decide whether anything needs cleanup before Phase 2.
