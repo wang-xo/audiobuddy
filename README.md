@@ -101,6 +101,12 @@ path, the Gemini model, audio processing metrics, and the generated summary.
 If the master file markers are malformed, AudioBuddy fails clearly rather than
 guessing how to replace entries.
 
+Entries are kept in chronological order using the timestamp in each source
+filename. A newly processed latest recording is appended. Processing an older
+recording, or retrying a source filename already present, rewrites the master
+file in chronological order; the retried entry points to its newest individual
+summary file.
+
 ## Summary Format
 
 The Gemini prompt lives in `prompt.md`. Treat that file as the authoritative

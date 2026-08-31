@@ -33,6 +33,7 @@ FILENAME_TIMESTAMP_PATTERN = re.compile(
 )
 MASTER_ENTRY_START_TEMPLATE = '<!-- AUDIOBUDDY_ENTRY_START filename="{filename}" -->'
 MASTER_ENTRY_END = "<!-- AUDIOBUDDY_ENTRY_END -->"
+MASTER_SUMMARY_TITLE = "# AudioBuddy Master Summary"
 
 
 class ValidationError(Exception):
@@ -155,6 +156,20 @@ def parse_filename_timestamp(audio_path: Path) -> tuple[str, str]:
     raw_datetime = f"{match.group('date')} {match.group('time')}"
     parsed = datetime.strptime(raw_datetime, "%Y-%m-%d %H_%M_%S")
     return parsed.strftime("%d %B %Y"), parsed.strftime("%H:%M:%S")
+
+
+def parse_source_filename_datetime(source_filename: str) -> datetime:
+    """Return the sortable timestamp encoded in a master entry filename."""
+    match = FILENAME_TIMESTAMP_PATTERN.match(Path(source_filename).stem)
+    if not match:
+        raise MasterSummaryError(
+            "Master entry filename must match 'YYYY-MM-DD HH_MM_SS.mp3': "
+            f"{source_filename}"
+        )
+
+    return datetime.strptime(
+        f"{match.group('date')} {match.group('time')}", "%Y-%m-%d %H_%M_%S"
+    )
 
 
 def validate_audio_file(audio_file: str) -> AudioInput:
@@ -553,6 +568,45 @@ def replace_or_add_master_entry(
     return updated_entries, replaced
 
 
+def render_master_summary(entries: list[ParsedMasterEntry]) -> str:
+    """Render a complete, chronologically ordered master summary file."""
+    ordered_entries = sorted(
+        entries,
+        key=lambda entry: parse_source_filename_datetime(entry.source_filename),
+    )
+    entry_text = "\n\n".join(entry.content.strip() for entry in ordered_entries)
+    return f"{MASTER_SUMMARY_TITLE}\n\n{entry_text}\n"
+
+
+def update_master_summary(
+    current_entry: MasterSummaryEntry,
+    master_path: Path = MASTER_SUMMARY_PATH,
+) -> str:
+    """Create, append to, or rewrite the master summary as needed."""
+    existing_entries = read_master_entries(master_path)
+    updated_entries, replaced = replace_or_add_master_entry(
+        existing_entries, current_entry
+    )
+    current_timestamp = parse_source_filename_datetime(current_entry.source_filename)
+
+    master_path.parent.mkdir(parents=True, exist_ok=True)
+    if not existing_entries:
+        master_path.write_text(render_master_summary(updated_entries), encoding="utf-8")
+        return "created"
+
+    latest_timestamp = max(
+        parse_source_filename_datetime(entry.source_filename)
+        for entry in existing_entries
+    )
+    if not replaced and current_timestamp >= latest_timestamp:
+        with master_path.open("a", encoding="utf-8") as master_file:
+            master_file.write("\n" + updated_entries[-1].content.strip() + "\n")
+        return "appended"
+
+    master_path.write_text(render_master_summary(updated_entries), encoding="utf-8")
+    return "rewritten"
+
+
 def load_prompt_template(prompt_path: Path = PROMPT_PATH) -> str:
     if not prompt_path.is_file():
         raise PromptError(f"Prompt file not found: {prompt_path}")
@@ -699,6 +753,7 @@ def main() -> int:
     args = parse_args()
     audio_processing: AudioProcessingResult | None = None
     cleanup_path: Path | None = None
+    master_update_action: str | None = None
 
     try:
         load_dotenv(Path(__file__).resolve().parent / ".env")
@@ -709,6 +764,18 @@ def main() -> int:
         audio_processing = plan_audio_processing(audio_input, audio_metadata)
         summary = generate_gemini_summary(audio_input, audio_processing)
         output_path = write_summary(audio_input, summary.markdown)
+        master_update_action = update_master_summary(
+            MasterSummaryEntry(
+                source_filename=audio_input.path.name,
+                source_audio_path=audio_input.path,
+                individual_summary_path=output_path,
+                date_text=audio_input.date_text,
+                time_text=audio_input.time_text,
+                gemini_model=summary.model,
+                audio_processing=audio_processing,
+                summary_markdown=summary.markdown,
+            )
+        )
     except ValidationError as error:
         print(f"Failure: {error}", file=sys.stderr)
         return 1
@@ -730,6 +797,7 @@ def main() -> int:
     print("Success: summary created.")
     print(f"Audio file: {audio_input.path}")
     print(f"Summary file: {output_path}")
+    print(f"Master summary file: {MASTER_SUMMARY_PATH} ({master_update_action})")
     print(f"Date: {audio_input.date_text}")
     print(f"Time: {audio_input.time_text}")
     print("Audio processing:")
