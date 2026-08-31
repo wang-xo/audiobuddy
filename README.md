@@ -95,6 +95,8 @@ The generated Markdown uses this fixed heading structure:
 
 ## Date and Time
 
+## Audio Processing
+
 ## Executive Summary
 
 ## Verbose Summary

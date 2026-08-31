@@ -433,10 +433,32 @@ def load_prompt_template(prompt_path: Path = PROMPT_PATH) -> str:
     return template
 
 
-def build_summary_prompt(audio_input: AudioInput) -> str:
+def format_audio_processing_summary(audio_processing: AudioProcessingResult) -> str:
+    return "\n".join(
+        [
+            f"- Original duration: {format_duration(audio_processing.original_duration_seconds)} "
+            f"({audio_processing.original_duration_seconds:.2f} seconds)",
+            f"- Processed duration: {format_duration(audio_processing.processed_duration_seconds)} "
+            f"({audio_processing.processed_duration_seconds:.2f} seconds)",
+            f"- Audio removed: {format_duration(audio_processing.removed_seconds)} "
+            f"({audio_processing.removed_seconds:.2f} seconds)",
+            f"- Reduction: {audio_processing.reduction_percent:.2f}%",
+            f"- Trimmed: {'yes' if audio_processing.trimmed else 'no'}",
+            f"- Processing note: {audio_processing.reason}",
+        ]
+    )
+
+
+def build_summary_prompt(
+    audio_input: AudioInput, audio_processing: AudioProcessingResult
+) -> str:
     template = load_prompt_template()
     try:
-        return template.format(date=audio_input.date_text, time=audio_input.time_text)
+        return template.format(
+            date=audio_input.date_text,
+            time=audio_input.time_text,
+            audio_processing_summary=format_audio_processing_summary(audio_processing),
+        )
     except KeyError as error:
         raise PromptError(f"Unknown placeholder in prompt.md: {{{error.args[0]}}}") from error
 
@@ -472,6 +494,7 @@ def is_transient_gemini_error(error: Exception) -> bool:
             "high demand",
             "api_error",
             "too_many_requests",
+            "server disconnected",
         )
     )
 
@@ -501,7 +524,7 @@ def generate_gemini_summary(
                 input=[
                     {
                         "type": "text",
-                        "text": build_summary_prompt(audio_input),
+                        "text": build_summary_prompt(audio_input, audio_processing),
                     },
                     {
                         "type": "audio",
@@ -558,12 +581,8 @@ def main() -> int:
     print(f"Summary file: {output_path}")
     print(f"Date: {audio_input.date_text}")
     print(f"Time: {audio_input.time_text}")
-    print(
-        "Original duration: "
-        f"{format_duration(audio_metadata.original_duration_seconds)} "
-        f"({audio_metadata.original_duration_seconds:.2f} seconds)"
-    )
-    print(f"Audio processing: {audio_processing.reason}")
+    print("Audio processing:")
+    print(format_audio_processing_summary(audio_processing))
     print(f"Uploaded audio file: {audio_processing.upload_path}")
     print(f"Gemini model: {summary.model}")
     return 0
