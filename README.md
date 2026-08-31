@@ -107,6 +107,12 @@ recording, or retrying a source filename already present, rewrites the master
 file in chronological order; the retried entry points to its newest individual
 summary file.
 
+Run the local master-summary checks without contacting Gemini:
+
+```powershell
+.venv\Scripts\python.exe -m unittest tests.test_master_summary
+```
+
 ## Summary Format
 
 The Gemini prompt lives in `prompt.md`. Treat that file as the authoritative
