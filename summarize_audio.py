@@ -528,6 +528,31 @@ def read_master_entries(master_path: Path = MASTER_SUMMARY_PATH) -> list[ParsedM
     return parse_master_entries(master_path.read_text(encoding="utf-8"))
 
 
+def replace_or_add_master_entry(
+    existing_entries: list[ParsedMasterEntry],
+    current_entry: MasterSummaryEntry,
+) -> tuple[list[ParsedMasterEntry], bool]:
+    """Replace the entry for a retried source file, or add a new entry."""
+    rendered_entry = ParsedMasterEntry(
+        source_filename=current_entry.source_filename,
+        content=render_master_entry(current_entry).strip(),
+    )
+    replaced = False
+    updated_entries: list[ParsedMasterEntry] = []
+
+    for entry in existing_entries:
+        if entry.source_filename == rendered_entry.source_filename:
+            updated_entries.append(rendered_entry)
+            replaced = True
+        else:
+            updated_entries.append(entry)
+
+    if not replaced:
+        updated_entries.append(rendered_entry)
+
+    return updated_entries, replaced
+
+
 def load_prompt_template(prompt_path: Path = PROMPT_PATH) -> str:
     if not prompt_path.is_file():
         raise PromptError(f"Prompt file not found: {prompt_path}")
