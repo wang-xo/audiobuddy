@@ -21,6 +21,7 @@ API_KEY_NAME = "GEMINI_API_KEY"
 GEMINI_MODELS = ("gemini-3.7-flash", "gemini-3.6-flash")
 OUTPUT_DIR = Path(r"D:\Documents\Personal\audio\out")
 PROMPT_PATH = Path(__file__).resolve().parent / "prompt.md"
+TRIM_DURATION_THRESHOLD_SECONDS = 10 * 60
 FILENAME_TIMESTAMP_PATTERN = re.compile(
     r"^(?P<date>\d{4}-\d{2}-\d{2}) (?P<time>\d{2}_\d{2}_\d{2})$"
 )
@@ -52,6 +53,17 @@ class AudioInput:
 @dataclass(frozen=True)
 class AudioMetadata:
     original_duration_seconds: float
+
+
+@dataclass(frozen=True)
+class AudioProcessingResult:
+    upload_path: Path
+    original_duration_seconds: float
+    processed_duration_seconds: float
+    removed_seconds: float
+    reduction_percent: float
+    trimmed: bool
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -171,6 +183,33 @@ def get_audio_metadata(audio_input: AudioInput) -> AudioMetadata:
     return AudioMetadata(original_duration_seconds=get_audio_duration_seconds(audio_input.path))
 
 
+def plan_audio_processing(
+    audio_input: AudioInput, audio_metadata: AudioMetadata
+) -> AudioProcessingResult:
+    original_duration = audio_metadata.original_duration_seconds
+
+    if original_duration <= TRIM_DURATION_THRESHOLD_SECONDS:
+        return AudioProcessingResult(
+            upload_path=audio_input.path,
+            original_duration_seconds=original_duration,
+            processed_duration_seconds=original_duration,
+            removed_seconds=0.0,
+            reduction_percent=0.0,
+            trimmed=False,
+            reason="duration is 10 minutes or shorter; skipping silence trimming",
+        )
+
+    return AudioProcessingResult(
+        upload_path=audio_input.path,
+        original_duration_seconds=original_duration,
+        processed_duration_seconds=original_duration,
+        removed_seconds=0.0,
+        reduction_percent=0.0,
+        trimmed=False,
+        reason="duration is longer than 10 minutes; trimming will run in Stage 2-1-4",
+    )
+
+
 def format_duration(seconds: float) -> str:
     rounded_seconds = int(round(seconds))
     hours, remainder = divmod(rounded_seconds, 3600)
@@ -248,7 +287,9 @@ def is_transient_gemini_error(error: Exception) -> bool:
     )
 
 
-def generate_gemini_summary(audio_input: AudioInput) -> GeminiSummary:
+def generate_gemini_summary(
+    audio_input: AudioInput, audio_processing: AudioProcessingResult
+) -> GeminiSummary:
     try:
         from google import genai
     except ImportError as error:
@@ -259,7 +300,7 @@ def generate_gemini_summary(audio_input: AudioInput) -> GeminiSummary:
     client = genai.Client(api_key=os.environ[API_KEY_NAME])
 
     try:
-        uploaded_file = client.files.upload(file=audio_input.path)
+        uploaded_file = client.files.upload(file=audio_processing.upload_path)
     except Exception as error:
         raise GeminiIntegrationError(f"Audio upload failed: {error}") from error
 
@@ -304,7 +345,8 @@ def main() -> int:
         audio_input = validate_audio_file(args.audio_file)
         require_audio_tools()
         audio_metadata = get_audio_metadata(audio_input)
-        summary = generate_gemini_summary(audio_input)
+        audio_processing = plan_audio_processing(audio_input, audio_metadata)
+        summary = generate_gemini_summary(audio_input, audio_processing)
         output_path = write_summary(audio_input, summary.markdown)
     except ValidationError as error:
         print(f"Failure: {error}", file=sys.stderr)
@@ -332,6 +374,8 @@ def main() -> int:
         f"{format_duration(audio_metadata.original_duration_seconds)} "
         f"({audio_metadata.original_duration_seconds:.2f} seconds)"
     )
+    print(f"Audio processing: {audio_processing.reason}")
+    print(f"Uploaded audio file: {audio_processing.upload_path}")
     print(f"Gemini model: {summary.model}")
     return 0
 
