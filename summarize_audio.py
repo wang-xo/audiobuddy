@@ -113,6 +113,16 @@ class GeminiSummary:
 
 
 @dataclass(frozen=True)
+class ProcessingOutcome:
+    audio_input: AudioInput
+    audio_processing: AudioProcessingResult
+    summary: GeminiSummary
+    output_path: Path
+    master_update_action: str
+    cleanup_path: Path | None
+
+
+@dataclass(frozen=True)
 class MasterSummaryEntry:
     source_filename: str
     source_audio_path: Path
@@ -833,24 +843,12 @@ def generate_gemini_summary(
     raise GeminiIntegrationError(str(last_error)) from last_error
 
 
-def main() -> int:
-    args = parse_args()
-
-    if args.scan:
-        print(
-            "Failure: --scan is not available until Phase 2-3 batch processing is complete.",
-            file=sys.stderr,
-        )
-        return 2
-
+def process_audio_file(audio_file: str) -> ProcessingOutcome:
+    """Process one audio file after the environment and API key are prepared."""
     audio_processing: AudioProcessingResult | None = None
-    cleanup_path: Path | None = None
-    master_update_action: str | None = None
 
     try:
-        load_dotenv(Path(__file__).resolve().parent / ".env")
-        require_api_key()
-        audio_input = validate_audio_file(args.audio_file)
+        audio_input = validate_audio_file(audio_file)
         require_audio_tools()
         audio_metadata = get_audio_metadata(audio_input)
         audio_processing = plan_audio_processing(audio_input, audio_metadata)
@@ -868,6 +866,51 @@ def main() -> int:
                 summary_markdown=summary.markdown,
             )
         )
+    finally:
+        cleanup_path = cleanup_temporary_audio(audio_processing)
+
+    return ProcessingOutcome(
+        audio_input=audio_input,
+        audio_processing=audio_processing,
+        summary=summary,
+        output_path=output_path,
+        master_update_action=master_update_action,
+        cleanup_path=cleanup_path,
+    )
+
+
+def print_processing_success(outcome: ProcessingOutcome) -> None:
+    print("Success: summary created.")
+    print(f"Audio file: {outcome.audio_input.path}")
+    print(f"Summary file: {outcome.output_path}")
+    print(
+        f"Master summary file: {MASTER_SUMMARY_PATH} "
+        f"({outcome.master_update_action})"
+    )
+    print(f"Date: {outcome.audio_input.date_text}")
+    print(f"Time: {outcome.audio_input.time_text}")
+    print("Audio processing:")
+    print(format_audio_processing_summary(outcome.audio_processing))
+    print(f"Uploaded audio file: {outcome.audio_processing.upload_path}")
+    if outcome.cleanup_path is not None:
+        print(f"Cleaned up temporary audio file: {outcome.cleanup_path}")
+    print(f"Gemini model: {outcome.summary.model}")
+
+
+def main() -> int:
+    args = parse_args()
+
+    if args.scan:
+        print(
+            "Failure: --scan is not available until Phase 2-3 batch processing is complete.",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        load_dotenv(Path(__file__).resolve().parent / ".env")
+        require_api_key()
+        outcome = process_audio_file(args.audio_file)
     except ValidationError as error:
         print(f"Failure: {error}", file=sys.stderr)
         return 1
@@ -886,21 +929,7 @@ def main() -> int:
     except OSError as error:
         print(f"Failure: Could not write summary file: {error}", file=sys.stderr)
         return 1
-    finally:
-        cleanup_path = cleanup_temporary_audio(audio_processing)
-
-    print("Success: summary created.")
-    print(f"Audio file: {audio_input.path}")
-    print(f"Summary file: {output_path}")
-    print(f"Master summary file: {MASTER_SUMMARY_PATH} ({master_update_action})")
-    print(f"Date: {audio_input.date_text}")
-    print(f"Time: {audio_input.time_text}")
-    print("Audio processing:")
-    print(format_audio_processing_summary(audio_processing))
-    print(f"Uploaded audio file: {audio_processing.upload_path}")
-    if cleanup_path is not None:
-        print(f"Cleaned up temporary audio file: {cleanup_path}")
-    print(f"Gemini model: {summary.model}")
+    print_processing_success(outcome)
     return 0
 
 
