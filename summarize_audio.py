@@ -20,6 +20,7 @@ from pathlib import Path
 
 API_KEY_NAME = "GEMINI_API_KEY"
 GEMINI_MODELS = ("gemini-3.7-flash", "gemini-3.6-flash")
+INPUT_DIR = Path(r"D:\Documents\Personal\audio\in")
 OUTPUT_DIR = Path(r"D:\Documents\Personal\audio\out")
 MASTER_SUMMARY_PATH = OUTPUT_DIR / "master-summary.md"
 PROMPT_PATH = Path(__file__).resolve().parent / "prompt.md"
@@ -61,6 +62,18 @@ class AudioInput:
     path: Path
     date_text: str
     time_text: str
+
+
+@dataclass(frozen=True)
+class SkippedInputFile:
+    path: Path
+    reason: str
+
+
+@dataclass(frozen=True)
+class InputDiscovery:
+    valid_audio: list[AudioInput]
+    skipped_files: list[SkippedInputFile]
 
 
 @dataclass(frozen=True)
@@ -197,6 +210,34 @@ def validate_audio_file(audio_file: str) -> AudioInput:
 
     date_text, time_text = parse_filename_timestamp(audio_path)
     return AudioInput(path=audio_path, date_text=date_text, time_text=time_text)
+
+
+def discover_input_files(input_dir: Path = INPUT_DIR) -> InputDiscovery:
+    """Discover valid top-level audio inputs and record skipped entries."""
+    if not input_dir.is_dir():
+        raise ValidationError(f"Input directory does not exist: {input_dir}")
+
+    valid_audio: list[AudioInput] = []
+    skipped_files: list[SkippedInputFile] = []
+
+    for input_path in sorted(input_dir.iterdir(), key=lambda path: path.name.lower()):
+        if not input_path.is_file():
+            skipped_files.append(
+                SkippedInputFile(input_path, "not a regular file")
+            )
+            continue
+
+        if input_path.suffix.lower() != ".mp3":
+            skipped_files.append(SkippedInputFile(input_path, "not an MP3 file"))
+            continue
+
+        try:
+            valid_audio.append(validate_audio_file(str(input_path)))
+        except ValidationError as error:
+            skipped_files.append(SkippedInputFile(input_path, str(error)))
+
+    valid_audio.sort(key=lambda audio_input: audio_input.path.name)
+    return InputDiscovery(valid_audio=valid_audio, skipped_files=skipped_files)
 
 
 def require_audio_tools() -> None:
@@ -768,7 +809,7 @@ def main() -> int:
 
     if args.scan:
         print(
-            "Failure: --scan is not available until Phase 2-3-2.",
+            "Failure: --scan is not available until Phase 2-3 batch processing is complete.",
             file=sys.stderr,
         )
         return 2
