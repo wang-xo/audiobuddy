@@ -50,7 +50,7 @@ Silence trimming requirements:
 - Never modify or overwrite the original audio file.
 - Silence trimming should run for any file with duration longer than 10 minutes
 - Detect and remove long periods of silence.
-- Be conservative: only remove silence lasting at least 30 seconds and -40dB.
+- Be conservative: only remove silence lasting at least 30 seconds and -30dB.
 - If no audio is trimmed, stop, and send the original audio file.
 - Do not remove normal pauses between speakers.
 - Preserve the audio format and quality as much as practical.

@@ -12,6 +12,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +23,10 @@ GEMINI_MODELS = ("gemini-3.7-flash", "gemini-3.6-flash")
 OUTPUT_DIR = Path(r"D:\Documents\Personal\audio\out")
 PROMPT_PATH = Path(__file__).resolve().parent / "prompt.md"
 TRIM_DURATION_THRESHOLD_SECONDS = 10 * 60
+SILENCE_DURATION_SECONDS = 30
+SILENCE_THRESHOLD_DB = "-30dB"
+RETAINED_SILENCE_SECONDS = 1.0
+MINIMUM_TRIMMED_SECONDS = 1.0
 FILENAME_TIMESTAMP_PATTERN = re.compile(
     r"^(?P<date>\d{4}-\d{2}-\d{2}) (?P<time>\d{2}_\d{2}_\d{2})$"
 )
@@ -64,6 +69,14 @@ class AudioProcessingResult:
     reduction_percent: float
     trimmed: bool
     reason: str
+    temporary_file: bool = False
+
+
+@dataclass(frozen=True)
+class SilenceInterval:
+    start_seconds: float
+    end_seconds: float
+    duration_seconds: float
 
 
 @dataclass(frozen=True)
@@ -183,6 +196,144 @@ def get_audio_metadata(audio_input: AudioInput) -> AudioMetadata:
     return AudioMetadata(original_duration_seconds=get_audio_duration_seconds(audio_input.path))
 
 
+def create_temp_mp3_path(audio_path: Path) -> Path:
+    temp_file = tempfile.NamedTemporaryFile(
+        prefix=f"{audio_path.stem}-trimmed-", suffix=".mp3", delete=False
+    )
+    temp_path = Path(temp_file.name)
+    temp_file.close()
+    return temp_path
+
+
+def detect_long_silences(audio_path: Path) -> list[SilenceInterval]:
+    result = subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-i",
+            str(audio_path),
+            "-af",
+            f"silencedetect=noise={SILENCE_THRESHOLD_DB}:d={SILENCE_DURATION_SECONDS}",
+            "-f",
+            "null",
+            "NUL",
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        details = result.stderr.strip() or "ffmpeg did not return silence details."
+        raise AudioToolError(f"Could not detect long silence: {details}")
+
+    starts: list[float] = []
+    intervals: list[SilenceInterval] = []
+
+    for line in result.stderr.splitlines():
+        start_match = re.search(r"silence_start: (?P<start>[0-9.]+)", line)
+        if start_match:
+            starts.append(float(start_match.group("start")))
+            continue
+
+        end_match = re.search(
+            r"silence_end: (?P<end>[0-9.]+) \| silence_duration: (?P<duration>[0-9.]+)",
+            line,
+        )
+        if end_match and starts:
+            intervals.append(
+                SilenceInterval(
+                    start_seconds=starts.pop(0),
+                    end_seconds=float(end_match.group("end")),
+                    duration_seconds=float(end_match.group("duration")),
+                )
+            )
+
+    return intervals
+
+
+def build_keep_ranges(
+    original_duration: float, silence_intervals: list[SilenceInterval]
+) -> list[tuple[float, float]]:
+    keep_ranges: list[tuple[float, float]] = []
+    cursor = 0.0
+
+    for interval in silence_intervals:
+        retained_silence_end = min(
+            interval.start_seconds + RETAINED_SILENCE_SECONDS,
+            interval.end_seconds,
+        )
+        keep_end = max(cursor, retained_silence_end)
+        if keep_end > cursor:
+            keep_ranges.append((cursor, keep_end))
+        cursor = max(cursor, interval.end_seconds)
+
+    if cursor < original_duration:
+        keep_ranges.append((cursor, original_duration))
+
+    return [(start, end) for start, end in keep_ranges if end - start > 0.01]
+
+
+def trim_long_silence(audio_path: Path, original_duration: float) -> Path | None:
+    silence_intervals = detect_long_silences(audio_path)
+    if not silence_intervals:
+        return None
+
+    keep_ranges = build_keep_ranges(original_duration, silence_intervals)
+    if not keep_ranges:
+        raise AudioToolError("Silence trimming would remove the entire audio file.")
+
+    output_path = create_temp_mp3_path(audio_path)
+    trim_parts = []
+    concat_inputs = []
+
+    for index, (start, end) in enumerate(keep_ranges):
+        label = f"a{index}"
+        trim_parts.append(
+            f"[0:a]atrim=start={start:.3f}:end={end:.3f},asetpts=N/SR/TB[{label}]"
+        )
+        concat_inputs.append(f"[{label}]")
+
+    filter_complex = (
+        ";".join(trim_parts)
+        + ";"
+        + "".join(concat_inputs)
+        + f"concat=n={len(keep_ranges)}:v=0:a=1[outa]"
+    )
+
+    result = subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(audio_path),
+            "-filter_complex",
+            filter_complex,
+            "-map",
+            "[outa]",
+            "-codec:a",
+            "libmp3lame",
+            "-q:a",
+            "2",
+            str(output_path),
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        output_path.unlink(missing_ok=True)
+        details = result.stderr.strip() or "ffmpeg did not return error details."
+        raise AudioToolError(f"Could not trim long silence: {details}")
+
+    if not output_path.is_file() or output_path.stat().st_size == 0:
+        output_path.unlink(missing_ok=True)
+        raise AudioToolError("FFmpeg did not create a usable trimmed audio file.")
+
+    return output_path
+
+
 def plan_audio_processing(
     audio_input: AudioInput, audio_metadata: AudioMetadata
 ) -> AudioProcessingResult:
@@ -199,14 +350,52 @@ def plan_audio_processing(
             reason="duration is 10 minutes or shorter; skipping silence trimming",
         )
 
+    trimmed_path = trim_long_silence(audio_input.path, original_duration)
+    if trimmed_path is None:
+        return AudioProcessingResult(
+            upload_path=audio_input.path,
+            original_duration_seconds=original_duration,
+            processed_duration_seconds=original_duration,
+            removed_seconds=0.0,
+            reduction_percent=0.0,
+            trimmed=False,
+            reason=(
+                f"duration is longer than 10 minutes, but no silence of at least "
+                f"{SILENCE_DURATION_SECONDS} seconds at {SILENCE_THRESHOLD_DB} was detected"
+            ),
+        )
+
+    processed_duration = get_audio_duration_seconds(trimmed_path)
+    removed_seconds = max(0.0, original_duration - processed_duration)
+    reduction_percent = (removed_seconds / original_duration) * 100
+
+    if removed_seconds < MINIMUM_TRIMMED_SECONDS:
+        trimmed_path.unlink(missing_ok=True)
+        return AudioProcessingResult(
+            upload_path=audio_input.path,
+            original_duration_seconds=original_duration,
+            processed_duration_seconds=original_duration,
+            removed_seconds=0.0,
+            reduction_percent=0.0,
+            trimmed=False,
+            reason=(
+                f"duration is longer than 10 minutes, but no silence of at least "
+                f"{SILENCE_DURATION_SECONDS} seconds at {SILENCE_THRESHOLD_DB} was trimmed"
+            ),
+        )
+
     return AudioProcessingResult(
-        upload_path=audio_input.path,
+        upload_path=trimmed_path,
         original_duration_seconds=original_duration,
-        processed_duration_seconds=original_duration,
-        removed_seconds=0.0,
-        reduction_percent=0.0,
-        trimmed=False,
-        reason="duration is longer than 10 minutes; trimming will run in Stage 2-1-4",
+        processed_duration_seconds=processed_duration,
+        removed_seconds=removed_seconds,
+        reduction_percent=reduction_percent,
+        trimmed=True,
+        reason=(
+            f"duration is longer than 10 minutes; removed silence of at least "
+            f"{SILENCE_DURATION_SECONDS} seconds at {SILENCE_THRESHOLD_DB}"
+        ),
+        temporary_file=True,
     )
 
 

@@ -2,7 +2,7 @@ Phase 2-1 checkpoints:
 1. Detect ffmpeg and ffprobe.
 2. Get original duration with ffprobe.
 3. If duration is <= 10 minutes, skip trimming and upload original.
-4. If duration is > 10 minutes, run FFmpeg silenceremove with 30s / -40dB.
+4. If duration is > 10 minutes, run FFmpeg silence trimming with 30s / -30dB.
 5. Compare original vs processed duration.
 6. If reduction is meaningful, upload temp trimmed file; otherwise upload original.
 7. Pass trimming metrics into prompt.md using placeholders like {audio_processing_summary}.

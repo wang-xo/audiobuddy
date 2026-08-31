@@ -14,6 +14,7 @@ The script:
 - parses the date and time from filenames like `2026-08-30 11_10_13.mp3`
 - reads the original audio duration with `ffprobe`
 - skips silence trimming for files that are 10 minutes or shorter
+- trims long silence with FFmpeg for files longer than 10 minutes
 - uploads the audio with the Google GenAI Python SDK
 - asks a current Gemini Flash model for an English Markdown summary using `prompt.md`
 - writes the summary to `D:\Documents\Personal\audio\out`
@@ -116,6 +117,14 @@ Unknown action item owners are labeled `unknown`.
 - Unsupported file: Phase 1 accepts only `.mp3` files.
 - Missing FFmpeg: install FFmpeg and ensure `ffmpeg` and `ffprobe` are on PATH.
 - Gemini API failure: retry later or check quota, billing, and API-key access.
+
+## Silence Trimming
+
+For files longer than 10 minutes, AudioBuddy uses FFmpeg to remove long silence
+before upload. The Phase 2-1 default is conservative: silence must last at least
+30 seconds and be at or below `-30dB`.
+
+The original audio file is never modified.
 
 ## Phase 2 Ideas
 
