@@ -12,6 +12,7 @@ The script:
 - reads `GEMINI_API_KEY` from the environment or a local `.env` file
 - rejects missing files and non-MP3 inputs
 - parses the date and time from filenames like `2026-08-30 11_10_13.mp3`
+- reads the original audio duration with `ffprobe`
 - uploads the audio with the Google GenAI Python SDK
 - asks a current Gemini Flash model for an English Markdown summary using `prompt.md`
 - writes the summary to `D:\Documents\Personal\audio\out`

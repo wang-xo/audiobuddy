@@ -10,6 +10,7 @@ import argparse
 import os
 import re
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -46,6 +47,11 @@ class AudioInput:
     path: Path
     date_text: str
     time_text: str
+
+
+@dataclass(frozen=True)
+class AudioMetadata:
+    original_duration_seconds: float
 
 
 @dataclass(frozen=True)
@@ -125,6 +131,55 @@ def require_audio_tools() -> None:
         "ffmpeg and ffprobe are on PATH. On Windows, try: winget install Gyan.FFmpeg "
         "then reopen your terminal."
     )
+
+
+def get_audio_duration_seconds(audio_path: Path) -> float:
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(audio_path),
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        details = result.stderr.strip() or "ffprobe did not return duration details."
+        raise AudioToolError(f"Could not read audio duration: {details}")
+
+    try:
+        duration = float(result.stdout.strip())
+    except ValueError as error:
+        raise AudioToolError(
+            f"Could not parse audio duration from ffprobe output: {result.stdout.strip()}"
+        ) from error
+
+    if duration <= 0:
+        raise AudioToolError(f"Invalid audio duration reported by ffprobe: {duration}")
+
+    return duration
+
+
+def get_audio_metadata(audio_input: AudioInput) -> AudioMetadata:
+    return AudioMetadata(original_duration_seconds=get_audio_duration_seconds(audio_input.path))
+
+
+def format_duration(seconds: float) -> str:
+    rounded_seconds = int(round(seconds))
+    hours, remainder = divmod(rounded_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    if hours:
+        return f"{hours:d}:{minutes:02d}:{seconds:02d}"
+
+    return f"{minutes:d}:{seconds:02d}"
 
 
 def unique_summary_path(audio_path: Path, output_dir: Path) -> Path:
@@ -248,6 +303,7 @@ def main() -> int:
         require_api_key()
         audio_input = validate_audio_file(args.audio_file)
         require_audio_tools()
+        audio_metadata = get_audio_metadata(audio_input)
         summary = generate_gemini_summary(audio_input)
         output_path = write_summary(audio_input, summary.markdown)
     except ValidationError as error:
@@ -271,6 +327,11 @@ def main() -> int:
     print(f"Summary file: {output_path}")
     print(f"Date: {audio_input.date_text}")
     print(f"Time: {audio_input.time_text}")
+    print(
+        "Original duration: "
+        f"{format_duration(audio_metadata.original_duration_seconds)} "
+        f"({audio_metadata.original_duration_seconds:.2f} seconds)"
+    )
     print(f"Gemini model: {summary.model}")
     return 0
 
