@@ -39,7 +39,7 @@ Notes:
 Future iterations (preserve these in the README as Phase 2, do not work on them until Phase 1 is complete):
 Phase 2-1. Parse the audio file and trim long silence.
 Phase 2-2. Summary tracking. Record the filenames, timestamps, and summaries in one master file. Individual summary files should still be created as they are today.
-Phase 2-3. Simplify the UX. Accept a command to scan the current input directory, identify any new audio files, and work with only the new ones. 
+Phase 2-3. Simplify the UX. Accept a command to scan the current input directory, identify any new audio files, and work with only the new ones.
 
 Silence trimming notes:
 
@@ -83,3 +83,17 @@ Summary tracking requirements:
   <!-- AUDIOBUDDY_ENTRY_START filename="2026-08-29 16_51_37.mp3" -->
   <!-- AUDIOBUDDY_ENTRY_END -->
 - If Gemini or summary writing fails, do not update the master file.
+
+Batch scan requirements:
+
+- Add a --scan command that inspects only the top level of D:\Documents\Personal\audio\in. Do not recurse into subfolders.
+- Preserve the existing single-file command for explicit processing or reprocessing of one file.
+- Accept only MP3 files whose filenames use the existing YYYY-MM-DD HH_MM_SS.mp3 convention.
+- Report and skip non-MP3 files and invalid filenames; continue processing valid files.
+- Read the master file once and treat a source filename already represented there as already processed.
+- Process only new valid files, in chronological filename order.
+- If no new valid files are found, print "No new audio files found." and exit successfully.
+- Process batch files sequentially. If one file fails, report the failure, continue with later files, and exit nonzero after the batch if any file failed.
+- Retry transient Gemini failures up to three additional times, with waits of 2, 4, and 8 seconds. Do not impose a delay after successful requests.
+- Print final batch totals for processed, skipped, and failed files.
+- Defer a --rescan command that deliberately reprocesses all files to Phase 2-4.

@@ -1,0 +1,43 @@
+Phase 2-3 checkpoints:
+
+1. Add --scan command handling.
+   - Preserve python summarize_audio.py <audio-file> behavior.
+   - Define --scan as a top-level scan of D:\Documents\Personal\audio\in only.
+
+2. Discover and validate input files.
+   - List only top-level entries.
+   - Accept valid timestamp-named MP3 files.
+   - Report and skip non-MP3 files and invalid filenames.
+   - Sort valid files chronologically by the timestamp in the filename.
+
+3. Select unprocessed files.
+   - Read and parse master-summary.md once before processing.
+   - Skip files whose source filename already has a master entry.
+   - Print "No new audio files found." and return success when nothing is selected.
+
+4. Reuse the single-file workflow.
+   - Extract the current processing flow into a reusable per-file function.
+   - Preserve existing validation, silence trimming, individual-summary creation, master updates, and temporary-file cleanup.
+
+5. Process a batch reliably.
+   - Process selected files sequentially.
+   - Retry transient Gemini failures up to three additional times with 2, 4, and 8 second waits.
+   - Continue after a file failure and collect its error for the final report.
+   - Return a nonzero exit code if one or more selected files fail.
+
+6. Add local tests.
+   - Test top-level discovery, chronological sorting, and invalid-file skipping.
+   - Test selection against fake master entries.
+   - Test no-new-files success behavior.
+   - Test partial batch failure and final processed, skipped, and failed totals.
+   - Confirm individual summary behavior remains unchanged.
+
+7. Run a real batch smoke test.
+   - Place a small set of valid test files in the input folder.
+   - Run --scan and confirm only new files are processed.
+   - Confirm individual outputs and chronological master entries are created.
+   - Run --scan again and confirm it reports no new audio files.
+
+Deferred to Phase 2-4:
+
+- Add --rescan to intentionally reprocess all valid input files, for example after changing prompt.md.
