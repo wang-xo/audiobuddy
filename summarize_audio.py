@@ -21,6 +21,7 @@ from pathlib import Path
 API_KEY_NAME = "GEMINI_API_KEY"
 GEMINI_MODELS = ("gemini-3.7-flash", "gemini-3.6-flash")
 OUTPUT_DIR = Path(r"D:\Documents\Personal\audio\out")
+MASTER_SUMMARY_PATH = OUTPUT_DIR / "master-summary.md"
 PROMPT_PATH = Path(__file__).resolve().parent / "prompt.md"
 TRIM_DURATION_THRESHOLD_SECONDS = 10 * 60
 SILENCE_DURATION_SECONDS = 30
@@ -30,6 +31,8 @@ MINIMUM_TRIMMED_SECONDS = 1.0
 FILENAME_TIMESTAMP_PATTERN = re.compile(
     r"^(?P<date>\d{4}-\d{2}-\d{2}) (?P<time>\d{2}_\d{2}_\d{2})$"
 )
+MASTER_ENTRY_START_TEMPLATE = '<!-- AUDIOBUDDY_ENTRY_START filename="{filename}" -->'
+MASTER_ENTRY_END = "<!-- AUDIOBUDDY_ENTRY_END -->"
 
 
 class ValidationError(Exception):
@@ -420,6 +423,14 @@ def unique_summary_path(audio_path: Path, output_dir: Path) -> Path:
         counter += 1
 
     return candidate
+
+
+def master_entry_start_marker(filename: str) -> str:
+    return MASTER_ENTRY_START_TEMPLATE.format(filename=filename)
+
+
+def master_entry_end_marker() -> str:
+    return MASTER_ENTRY_END
 
 
 def load_prompt_template(prompt_path: Path = PROMPT_PATH) -> str:

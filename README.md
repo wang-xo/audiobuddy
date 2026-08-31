@@ -83,6 +83,19 @@ If that file already exists, AudioBuddy creates a numbered alternative:
 2026-08-30 11_10_13-summary-1.md
 ```
 
+Phase 2-2 also maintains a master summary file:
+
+```text
+D:\Documents\Personal\audio\out\master-summary.md
+```
+
+Master entries use hidden Markdown markers so entries can be replaced safely:
+
+```markdown
+<!-- AUDIOBUDDY_ENTRY_START filename="2026-08-30 11_10_13.mp3" -->
+<!-- AUDIOBUDDY_ENTRY_END -->
+```
+
 ## Summary Format
 
 The Gemini prompt lives in `prompt.md`. Treat that file as the authoritative
