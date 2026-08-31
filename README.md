@@ -98,6 +98,8 @@ Master entries use hidden Markdown markers so entries can be replaced safely:
 
 Each master entry includes the source audio path, the newest individual summary
 path, the Gemini model, audio processing metrics, and the generated summary.
+If the master file markers are malformed, AudioBuddy fails clearly rather than
+guessing how to replace entries.
 
 ## Summary Format
 

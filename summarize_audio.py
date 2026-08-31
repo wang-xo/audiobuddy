@@ -47,6 +47,10 @@ class AudioToolError(Exception):
     """Raised when required local audio processing tools are unavailable."""
 
 
+class MasterSummaryError(Exception):
+    """Raised when the master summary file cannot be parsed safely."""
+
+
 class GeminiIntegrationError(Exception):
     """Raised when the Gemini SDK, upload, or model check fails."""
 
@@ -98,6 +102,12 @@ class MasterSummaryEntry:
     gemini_model: str
     audio_processing: AudioProcessingResult
     summary_markdown: str
+
+
+@dataclass(frozen=True)
+class ParsedMasterEntry:
+    source_filename: str
+    content: str
 
 
 def parse_args() -> argparse.Namespace:
@@ -467,6 +477,55 @@ def render_master_entry(entry: MasterSummaryEntry) -> str:
             "",
         ]
     )
+
+
+def parse_master_entries(master_markdown: str) -> list[ParsedMasterEntry]:
+    entries: list[ParsedMasterEntry] = []
+    position = 0
+    start_pattern = re.compile(
+        r'<!-- AUDIOBUDDY_ENTRY_START filename="(?P<filename>[^"]+)" -->'
+    )
+
+    while True:
+        start_match = start_pattern.search(master_markdown, position)
+        if start_match is None:
+            remaining = master_markdown[position:]
+            if MASTER_ENTRY_END in remaining:
+                raise MasterSummaryError("Found master entry end marker without start marker.")
+            break
+
+        unmatched_text = master_markdown[position : start_match.start()]
+        if MASTER_ENTRY_END in unmatched_text:
+            raise MasterSummaryError("Found master entry end marker before next start marker.")
+
+        end_index = master_markdown.find(MASTER_ENTRY_END, start_match.end())
+        if end_index == -1:
+            raise MasterSummaryError(
+                f"Master entry for {start_match.group('filename')} is missing an end marker."
+            )
+
+        entry_end = end_index + len(MASTER_ENTRY_END)
+        content = master_markdown[start_match.start() : entry_end].strip()
+        entries.append(
+            ParsedMasterEntry(
+                source_filename=start_match.group("filename"),
+                content=content,
+            )
+        )
+        position = entry_end
+
+    filenames = [entry.source_filename for entry in entries]
+    if len(filenames) != len(set(filenames)):
+        raise MasterSummaryError("Master summary contains duplicate source filename entries.")
+
+    return entries
+
+
+def read_master_entries(master_path: Path = MASTER_SUMMARY_PATH) -> list[ParsedMasterEntry]:
+    if not master_path.is_file():
+        return []
+
+    return parse_master_entries(master_path.read_text(encoding="utf-8"))
 
 
 def load_prompt_template(prompt_path: Path = PROMPT_PATH) -> str:
