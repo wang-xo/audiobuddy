@@ -96,6 +96,9 @@ Master entries use hidden Markdown markers so entries can be replaced safely:
 <!-- AUDIOBUDDY_ENTRY_END -->
 ```
 
+Each master entry includes the source audio path, the newest individual summary
+path, the Gemini model, audio processing metrics, and the generated summary.
+
 ## Summary Format
 
 The Gemini prompt lives in `prompt.md`. Treat that file as the authoritative

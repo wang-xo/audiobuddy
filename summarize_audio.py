@@ -88,6 +88,18 @@ class GeminiSummary:
     model: str
 
 
+@dataclass(frozen=True)
+class MasterSummaryEntry:
+    source_filename: str
+    source_audio_path: Path
+    individual_summary_path: Path
+    date_text: str
+    time_text: str
+    gemini_model: str
+    audio_processing: AudioProcessingResult
+    summary_markdown: str
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Summarize one local MP3 audio file with Gemini."
@@ -431,6 +443,30 @@ def master_entry_start_marker(filename: str) -> str:
 
 def master_entry_end_marker() -> str:
     return MASTER_ENTRY_END
+
+
+def render_master_entry(entry: MasterSummaryEntry) -> str:
+    return "\n".join(
+        [
+            master_entry_start_marker(entry.source_filename),
+            f"## {entry.date_text} {entry.time_text} - {entry.source_filename}",
+            "",
+            f"- Source file: `{entry.source_audio_path}`",
+            f"- Individual summary: `{entry.individual_summary_path}`",
+            f"- Gemini model: `{entry.gemini_model}`",
+            "",
+            "### Audio Processing",
+            "",
+            format_audio_processing_summary(entry.audio_processing),
+            "",
+            "### Summary",
+            "",
+            entry.summary_markdown.strip(),
+            "",
+            master_entry_end_marker(),
+            "",
+        ]
+    )
 
 
 def load_prompt_template(prompt_path: Path = PROMPT_PATH) -> str:
