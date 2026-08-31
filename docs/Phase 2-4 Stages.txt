@@ -1,0 +1,40 @@
+Phase 2-4 checkpoints:
+
+Goal:
+
+Replace the overlapping Executive Summary, Verbose Summary, and Key Discussion
+Points sections with a more useful Detailed Summary and Discussion Path. The
+prompt.md file remains the authoritative source for this output format.
+
+1. Define the revised fixed heading structure.
+   - Keep # Audio Summary, ## Date and Time, and ## Audio Processing.
+   - Replace ## Executive Summary, ## Verbose Summary, and ## Key Discussion Points.
+   - Add ## Detailed Summary and ## Discussion Path.
+   - Keep ## Decisions, ## Action Items, and ## Open Questions.
+
+2. Update prompt.md.
+   - Increase the response limit from 1,000 to 1,500 words.
+   - Detailed Summary: provide a thorough, synthesized account of important context, substantive discussion points, arguments, considerations, conclusions, decisions, concerns, risks, unresolved issues, and relevant facts.
+   - Prefer completeness over brevity while avoiding repetition and conversational filler.
+   - Discussion Path: organize by major discussion topic, not as a chronological transcript.
+   - For each topic, capture substantive proposals, concerns, questions, responses, agreement, disagreement, refinements, changes of view, and the resulting outcome or unresolved issue.
+   - Use names only when evident. Otherwise use consistent speaker labels only when speaker turns can be distinguished reliably; describe the exchange without labels when they cannot.
+   - Prevent duplication: Detailed Summary describes the substance and outcomes; Discussion Path describes how the discussion developed.
+
+3. Update documentation and local expectations.
+   - Update the README summary-format example and any project-outline requirements that name the old headings.
+   - Add or update local tests that verify prompt.md renders the revised headings and still receives date, time, and audio-processing placeholders.
+
+4. Run a single-file Gemini smoke test.
+   - Use the agreed short/default test file.
+   - Confirm the generated Markdown follows the new heading structure.
+   - Review that Detailed Summary is comprehensive without duplicating Discussion Path.
+   - Confirm Decisions, Action Items, and Open Questions remain reliable.
+
+5. Preserve existing outputs until intentional migration.
+   - Do not rewrite existing individual summaries or master entries during this phase.
+   - Phase 2-5 will add --rescan to deliberately regenerate all valid input files using the revised prompt.
+
+Deferred to Phase 2-5:
+
+- Add --rescan to intentionally reprocess all valid input files after changing prompt.md.

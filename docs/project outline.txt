@@ -12,9 +12,9 @@ Phase 1 Requirements:
 4. Send the uploaded audio to an appropriate current Gemini Flash model.
 5. Ask Gemini to translate as necessary and produce in English:
    - date and time
-   - executive summary
-   - verbose summary
-   - key discussion points and decisions
+   - detailed summary
+   - discussion path, organized by topic
+   - decisions
    - action items, including owner where identifiable (unidentified owners may be marked with the label "unknown")
    - open questions
 6. Save the result as Markdown <original-name>-summary.md. The summary md should preserve a fixed heading structure according to point 5 above. If filenames conflict automatically create a numbered alternative.
@@ -40,6 +40,7 @@ Future iterations (preserve these in the README as Phase 2, do not work on them 
 Phase 2-1. Parse the audio file and trim long silence.
 Phase 2-2. Summary tracking. Record the filenames, timestamps, and summaries in one master file. Individual summary files should still be created as they are today.
 Phase 2-3. Simplify the UX. Accept a command to scan the current input directory, identify any new audio files, and work with only the new ones.
+Phase 2-4. Redesign the summary format by replacing overlapping summary sections with Detailed Summary and Discussion Path. Keep prompt.md as the authoritative source.
 
 Silence trimming notes:
 

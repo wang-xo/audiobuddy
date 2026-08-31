@@ -38,6 +38,6 @@ Phase 2-3 checkpoints:
    - Confirm individual outputs and chronological master entries are created.
    - Run --scan again and confirm it reports no new audio files.
 
-Deferred to Phase 2-4:
+Deferred to Phase 2-5:
 
 - Add --rescan to intentionally reprocess all valid input files, for example after changing prompt.md.

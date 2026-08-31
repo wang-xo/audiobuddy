@@ -127,11 +127,9 @@ The generated Markdown uses this fixed heading structure:
 
 ## Audio Processing
 
-## Executive Summary
+## Detailed Summary
 
-## Verbose Summary
-
-## Key Discussion Points
+## Discussion Path
 
 ## Decisions
 
