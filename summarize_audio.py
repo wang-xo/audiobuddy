@@ -482,6 +482,22 @@ def write_summary(audio_input: AudioInput, markdown: str) -> Path:
     return output_path
 
 
+def cleanup_temporary_audio(audio_processing: AudioProcessingResult | None) -> Path | None:
+    if audio_processing is None or not audio_processing.temporary_file:
+        return None
+
+    try:
+        audio_processing.upload_path.unlink(missing_ok=True)
+        return audio_processing.upload_path
+    except OSError as error:
+        print(
+            f"Warning: Could not clean up temporary audio file "
+            f"{audio_processing.upload_path}: {error}",
+            file=sys.stderr,
+        )
+        return None
+
+
 def is_transient_gemini_error(error: Exception) -> bool:
     error_text = str(error).lower()
     return any(
@@ -550,6 +566,8 @@ def generate_gemini_summary(
 
 def main() -> int:
     args = parse_args()
+    audio_processing: AudioProcessingResult | None = None
+    cleanup_path: Path | None = None
 
     try:
         load_dotenv(Path(__file__).resolve().parent / ".env")
@@ -575,6 +593,8 @@ def main() -> int:
     except OSError as error:
         print(f"Failure: Could not write summary file: {error}", file=sys.stderr)
         return 1
+    finally:
+        cleanup_path = cleanup_temporary_audio(audio_processing)
 
     print("Success: summary created.")
     print(f"Audio file: {audio_input.path}")
@@ -584,6 +604,8 @@ def main() -> int:
     print("Audio processing:")
     print(format_audio_processing_summary(audio_processing))
     print(f"Uploaded audio file: {audio_processing.upload_path}")
+    if cleanup_path is not None:
+        print(f"Cleaned up temporary audio file: {cleanup_path}")
     print(f"Gemini model: {summary.model}")
     return 0
 

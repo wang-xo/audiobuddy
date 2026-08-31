@@ -127,6 +127,7 @@ before upload. The Phase 2-1 default is conservative: silence must last at least
 30 seconds and be at or below `-30dB`.
 
 The original audio file is never modified.
+Temporary trimmed files are deleted after processing completes or fails.
 
 ## Phase 2 Ideas
 
