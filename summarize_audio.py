@@ -77,6 +77,12 @@ class InputDiscovery:
 
 
 @dataclass(frozen=True)
+class InputSelection:
+    new_audio: list[AudioInput]
+    already_processed: list[AudioInput]
+
+
+@dataclass(frozen=True)
 class AudioMetadata:
     original_duration_seconds: float
 
@@ -598,6 +604,29 @@ def read_master_entries(master_path: Path = MASTER_SUMMARY_PATH) -> list[ParsedM
     return parse_master_entries(master_path.read_text(encoding="utf-8"))
 
 
+def select_new_audio_files(
+    discovery: InputDiscovery,
+    master_path: Path = MASTER_SUMMARY_PATH,
+) -> InputSelection:
+    """Split discovered inputs according to source filenames in the master file."""
+    processed_filenames = {
+        entry.source_filename for entry in read_master_entries(master_path)
+    }
+    new_audio: list[AudioInput] = []
+    already_processed: list[AudioInput] = []
+
+    for audio_input in discovery.valid_audio:
+        if audio_input.path.name in processed_filenames:
+            already_processed.append(audio_input)
+        else:
+            new_audio.append(audio_input)
+
+    return InputSelection(
+        new_audio=new_audio,
+        already_processed=already_processed,
+    )
+
+
 def replace_or_add_master_entry(
     existing_entries: list[ParsedMasterEntry],
     current_entry: MasterSummaryEntry,
@@ -843,6 +872,9 @@ def main() -> int:
         print(f"Failure: {error}", file=sys.stderr)
         return 1
     except PromptError as error:
+        print(f"Failure: {error}", file=sys.stderr)
+        return 1
+    except MasterSummaryError as error:
         print(f"Failure: {error}", file=sys.stderr)
         return 1
     except AudioToolError as error:
