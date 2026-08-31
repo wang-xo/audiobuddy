@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +30,7 @@ SILENCE_DURATION_SECONDS = 30
 SILENCE_THRESHOLD_DB = "-30dB"
 RETAINED_SILENCE_SECONDS = 1.0
 MINIMUM_TRIMMED_SECONDS = 1.0
+TRANSIENT_RETRY_DELAYS_SECONDS = (2, 4, 8)
 FILENAME_TIMESTAMP_PATTERN = re.compile(
     r"^(?P<date>\d{4}-\d{2}-\d{2}) (?P<time>\d{2}_\d{2}_\d{2})$"
 )
@@ -120,6 +122,20 @@ class ProcessingOutcome:
     output_path: Path
     master_update_action: str
     cleanup_path: Path | None
+
+
+@dataclass(frozen=True)
+class BatchFailure:
+    audio_input: AudioInput
+    error: Exception
+
+
+@dataclass(frozen=True)
+class BatchProcessingResult:
+    selected_audio: list[AudioInput]
+    processed: list[ProcessingOutcome]
+    skipped_files: list[SkippedInputFile]
+    failures: list[BatchFailure]
 
 
 @dataclass(frozen=True)
@@ -843,7 +859,10 @@ def generate_gemini_summary(
     raise GeminiIntegrationError(str(last_error)) from last_error
 
 
-def process_audio_file(audio_file: str) -> ProcessingOutcome:
+def process_audio_file(
+    audio_file: str,
+    master_path: Path = MASTER_SUMMARY_PATH,
+) -> ProcessingOutcome:
     """Process one audio file after the environment and API key are prepared."""
     audio_processing: AudioProcessingResult | None = None
 
@@ -864,7 +883,8 @@ def process_audio_file(audio_file: str) -> ProcessingOutcome:
                 gemini_model=summary.model,
                 audio_processing=audio_processing,
                 summary_markdown=summary.markdown,
-            )
+            ),
+            master_path,
         )
     finally:
         cleanup_path = cleanup_temporary_audio(audio_processing)
@@ -897,15 +917,125 @@ def print_processing_success(outcome: ProcessingOutcome) -> None:
     print(f"Gemini model: {outcome.summary.model}")
 
 
+def process_audio_with_transient_retries(
+    audio_input: AudioInput,
+    master_path: Path = MASTER_SUMMARY_PATH,
+) -> ProcessingOutcome:
+    """Process one file, retrying only transient Gemini integration failures."""
+    for retry_index, delay_seconds in enumerate(
+        (0, *TRANSIENT_RETRY_DELAYS_SECONDS)
+    ):
+        if retry_index:
+            print(
+                f"Retrying {audio_input.path.name} after transient Gemini failure "
+                f"in {delay_seconds} seconds.",
+                file=sys.stderr,
+            )
+            time.sleep(delay_seconds)
+
+        try:
+            return process_audio_file(str(audio_input.path), master_path)
+        except GeminiIntegrationError as error:
+            if (
+                retry_index == len(TRANSIENT_RETRY_DELAYS_SECONDS)
+                or not is_transient_gemini_error(error)
+            ):
+                raise
+
+    raise GeminiIntegrationError("Transient Gemini retry loop ended unexpectedly.")
+
+
+def process_new_input_files(
+    input_dir: Path = INPUT_DIR,
+    master_path: Path = MASTER_SUMMARY_PATH,
+) -> BatchProcessingResult:
+    """Process new top-level input files while continuing after file failures."""
+    discovery = discover_input_files(input_dir)
+    selection = select_new_audio_files(discovery, master_path)
+    skipped_files = list(discovery.skipped_files)
+    skipped_files.extend(
+        SkippedInputFile(
+            audio_input.path,
+            "already represented in the master summary",
+        )
+        for audio_input in selection.already_processed
+    )
+    processed: list[ProcessingOutcome] = []
+    failures: list[BatchFailure] = []
+
+    if not selection.new_audio:
+        return BatchProcessingResult(
+            selected_audio=[],
+            processed=processed,
+            skipped_files=skipped_files,
+            failures=failures,
+        )
+
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+    require_api_key()
+
+    for audio_input in selection.new_audio:
+        try:
+            processed.append(
+                process_audio_with_transient_retries(audio_input, master_path)
+            )
+        except (
+            ValidationError,
+            PromptError,
+            MasterSummaryError,
+            AudioToolError,
+            GeminiIntegrationError,
+            OSError,
+        ) as error:
+            failures.append(BatchFailure(audio_input, error))
+
+    return BatchProcessingResult(
+        selected_audio=selection.new_audio,
+        processed=processed,
+        skipped_files=skipped_files,
+        failures=failures,
+    )
+
+
+def print_batch_processing_result(result: BatchProcessingResult) -> None:
+    if not result.selected_audio:
+        print("No new audio files found.")
+
+    for outcome in result.processed:
+        print_processing_success(outcome)
+
+    for skipped_file in result.skipped_files:
+        print(f"Skipped: {skipped_file.path.name} ({skipped_file.reason})")
+
+    for failure in result.failures:
+        print(
+            f"Failed: {failure.audio_input.path.name} ({failure.error})",
+            file=sys.stderr,
+        )
+
+    print(
+        "Batch complete: "
+        f"processed {len(result.processed)}, "
+        f"skipped {len(result.skipped_files)}, "
+        f"failed {len(result.failures)}."
+    )
+
+
 def main() -> int:
     args = parse_args()
 
     if args.scan:
-        print(
-            "Failure: --scan is not available until Phase 2-3 batch processing is complete.",
-            file=sys.stderr,
-        )
-        return 2
+        try:
+            batch_result = process_new_input_files()
+        except ValidationError as error:
+            print(f"Failure: {error}", file=sys.stderr)
+            return 1
+        except MasterSummaryError as error:
+            print(f"Failure: {error}", file=sys.stderr)
+            return 1
+
+        print_batch_processing_result(batch_result)
+        return 1 if batch_result.failures else 0
 
     try:
         load_dotenv(Path(__file__).resolve().parent / ".env")
