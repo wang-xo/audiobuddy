@@ -38,7 +38,7 @@ Notes:
 
 Future iterations (preserve these in the README as Phase 2, do not work on them until Phase 1 is complete):
 Phase 2-1. Parse the audio file and trim long silence.
-Phase 2-2. Summary tracking. Record the filenames, timestamps, and summaries in one master file. Append new outputs as relevant.
+Phase 2-2. Summary tracking. Record the filenames, timestamps, and summaries in one master file. Individual summary files should still be created as they are today.
 Phase 2-3. Simplify the UX. Accept a command to scan the current input directory, identify any new audio files, and work with only the new ones. 
 
 Silence trimming notes:
@@ -62,3 +62,24 @@ Silence trimming requirements:
   - percentage reduction
 - Upload only the processed (trimmed) audio to Gemini.
 - If FFmpeg is not installed, provide a clear error explaining how to install it.
+
+Summary tracking requirements:
+
+- Continue writing individual summary files using the current filename behavior.
+- Also maintain one master Markdown file in D:\Documents\Personal\audio\out, named master-summary.md.
+- The master file should contain one entry per source audio filename.
+- If a file is summarized again, replace that source file's existing master entry rather than adding a duplicate.
+- The individual retry output should still create a numbered alternative file as it does today.
+- The master entry should point to the newest individual summary file for that source.
+- Keep the master file sorted chronologically by the date/time parsed from the source filename.
+- Use the cheapest safe master update strategy:
+  - If the master file does not exist, create it.
+  - If an entry for the same source filename already exists, replace that entry and rewrite the master file.
+  - If the new entry timestamp is newer than or equal to the latest master entry timestamp, append it.
+  - If the new entry timestamp is older than the latest master entry timestamp, insert it in chronological order and rewrite the master file.
+- Consider a future optional --rebuild-master flag to rebuild or repair the master file from available individual summaries.
+- Use stable hidden Markdown comments as entry markers so entries can be replaced reliably.
+  Example:
+  <!-- AUDIOBUDDY_ENTRY_START filename="2026-08-29 16_51_37.mp3" -->
+  <!-- AUDIOBUDDY_ENTRY_END -->
+- If Gemini or summary writing fails, do not update the master file.

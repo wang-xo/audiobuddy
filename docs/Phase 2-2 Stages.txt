@@ -1,0 +1,47 @@
+Phase 2-2 checkpoints:
+
+1. Define master summary constants and entry format.
+   - Master path: D:\Documents\Personal\audio\out\master-summary.md
+   - One entry per source audio filename.
+   - Use hidden markers:
+     <!-- AUDIOBUDDY_ENTRY_START filename="..." -->
+     <!-- AUDIOBUDDY_ENTRY_END -->
+
+2. Build master entry rendering.
+   - Include source filename.
+   - Include parsed date/time.
+   - Include source audio path.
+   - Include newest individual summary path.
+   - Include Gemini model.
+   - Include audio processing metrics.
+   - Include the generated summary content.
+
+3. Parse existing master entries.
+   - Read existing master-summary.md if present.
+   - Extract marked entries.
+   - Ignore malformed entries safely or fail clearly if replacement would be unsafe.
+
+4. Replace-or-add current entry.
+   - Retry behavior: replace existing master entry for the same source filename.
+   - Individual summary files keep current numbered-output behavior.
+   - Master entry points to the newest individual summary file.
+
+5. Append, replace, or rewrite master file.
+   - If the master file does not exist, create it.
+   - If the source filename already exists, replace that entry and rewrite.
+   - If the new entry timestamp is newer than or equal to the latest entry, append.
+   - If the new entry timestamp is older than the latest entry, insert chronologically and rewrite.
+   - Do not update the master file if Gemini or individual summary writing fails.
+   - Consider a future optional `--rebuild-master` flag for manual repair or migration.
+
+6. Local tests with fake entries.
+   - Add later file, then earlier file, and verify chronological order.
+   - Add retry of an existing file and verify replacement rather than duplication.
+   - Verify individual summary behavior is unchanged.
+
+7. End-to-end smoke test.
+   - Run the short/default Gemini test file.
+   - Run the long/trimming Gemini test file.
+   - Confirm master-summary.md contains both entries in chronological order.
+   - Confirm retry updates the existing master entry and points to the newest individual summary.
+   - Confirm newest entries append without a full rewrite.
