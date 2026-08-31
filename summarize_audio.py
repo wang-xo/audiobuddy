@@ -111,12 +111,26 @@ class ParsedMasterEntry:
     content: str
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(arguments: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Summarize one local MP3 audio file with Gemini."
     )
-    parser.add_argument("audio_file", help="Path to the MP3 audio file to summarize.")
-    return parser.parse_args()
+    parser.add_argument(
+        "audio_file",
+        nargs="?",
+        help="Path to one MP3 audio file to summarize or reprocess.",
+    )
+    parser.add_argument(
+        "--scan",
+        action="store_true",
+        help="Process new audio files from the configured input folder.",
+    )
+    parsed_args = parser.parse_args(arguments)
+
+    if parsed_args.scan == (parsed_args.audio_file is not None):
+        parser.error("provide exactly one audio file path or --scan")
+
+    return parsed_args
 
 
 def load_dotenv(env_path: Path) -> None:
@@ -751,6 +765,14 @@ def generate_gemini_summary(
 
 def main() -> int:
     args = parse_args()
+
+    if args.scan:
+        print(
+            "Failure: --scan is not available until Phase 2-3-2.",
+            file=sys.stderr,
+        )
+        return 2
+
     audio_processing: AudioProcessingResult | None = None
     cleanup_path: Path | None = None
     master_update_action: str | None = None
