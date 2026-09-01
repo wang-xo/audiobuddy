@@ -11,6 +11,7 @@ from summarize_audio import (
     MasterSummaryError,
     master_entry_end_marker,
     master_entry_start_marker,
+    select_all_audio_files,
     select_new_audio_files,
     validate_audio_file,
 )
@@ -78,6 +79,17 @@ class InputSelectionTests(unittest.TestCase):
 
         with self.assertRaises(MasterSummaryError):
             select_new_audio_files(discovery, self.master_path)
+
+    def test_selects_all_valid_files_for_rescan_despite_master_entries(self) -> None:
+        self.write_master_entry(self.first_audio.path.name)
+        discovery = InputDiscovery(
+            valid_audio=[self.first_audio, self.second_audio],
+            skipped_files=[],
+        )
+
+        selected_audio = select_all_audio_files(discovery)
+
+        self.assertEqual(selected_audio, [self.first_audio, self.second_audio])
 
 
 if __name__ == "__main__":

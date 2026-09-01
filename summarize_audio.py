@@ -665,6 +665,11 @@ def select_new_audio_files(
     )
 
 
+def select_all_audio_files(discovery: InputDiscovery) -> list[AudioInput]:
+    """Select every valid discovered input for an intentional rescan."""
+    return list(discovery.valid_audio)
+
+
 def replace_or_add_master_entry(
     existing_entries: list[ParsedMasterEntry],
     current_entry: MasterSummaryEntry,
