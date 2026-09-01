@@ -170,10 +170,22 @@ def parse_args(arguments: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Process new audio files from the configured input folder.",
     )
+    parser.add_argument(
+        "--rescan",
+        action="store_true",
+        help="Reprocess all valid audio files from the configured input folder.",
+    )
     parsed_args = parser.parse_args(arguments)
 
-    if parsed_args.scan == (parsed_args.audio_file is not None):
-        parser.error("provide exactly one audio file path or --scan")
+    selected_modes = sum(
+        (
+            parsed_args.audio_file is not None,
+            parsed_args.scan,
+            parsed_args.rescan,
+        )
+    )
+    if selected_modes != 1:
+        parser.error("provide exactly one audio file path, --scan, or --rescan")
 
     return parsed_args
 
@@ -1023,6 +1035,13 @@ def print_batch_processing_result(result: BatchProcessingResult) -> None:
 
 def main() -> int:
     args = parse_args()
+
+    if args.rescan:
+        print(
+            "Failure: --rescan is not available until Phase 2-5 is complete.",
+            file=sys.stderr,
+        )
+        return 2
 
     if args.scan:
         try:
