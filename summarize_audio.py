@@ -1104,6 +1104,35 @@ def print_batch_processing_result(result: BatchProcessingResult) -> None:
     )
 
 
+def print_rescan_processing_result(result: BatchProcessingResult) -> None:
+    for outcome in result.processed:
+        print_processing_success(outcome)
+
+    for skipped_file in result.skipped_files:
+        print(f"Skipped: {skipped_file.path.name} ({skipped_file.reason})")
+
+    for failure in result.failures:
+        print(
+            f"Failed: {failure.audio_input.path.name} ({failure.error})",
+            file=sys.stderr,
+        )
+
+    print(
+        "Rescan complete: "
+        f"processed {len(result.processed)}, "
+        f"skipped {len(result.skipped_files)}, "
+        f"failed {len(result.failures)}."
+    )
+
+
+def print_rescan_cancelled(preflight: RescanPreflight) -> None:
+    print("Rescan cancelled. No audio files were processed.")
+    print(
+        "Rescan complete: "
+        f"processed 0, skipped {len(preflight.skipped_files)}, failed 0, cancelled."
+    )
+
+
 def main() -> int:
     args = parse_args()
 
@@ -1120,9 +1149,13 @@ def main() -> int:
         print_rescan_preflight(rescan_preflight)
         if not rescan_preflight.selected_audio:
             print("No valid audio files found.")
+            print(
+                "Rescan complete: "
+                f"processed 0, skipped {len(rescan_preflight.skipped_files)}, failed 0."
+            )
             return 0
         if not confirm_rescan(len(rescan_preflight.selected_audio)):
-            print("Rescan cancelled. No audio files were processed.")
+            print_rescan_cancelled(rescan_preflight)
             return 0
 
         try:
@@ -1131,7 +1164,7 @@ def main() -> int:
             print(f"Failure: {error}", file=sys.stderr)
             return 1
 
-        print_batch_processing_result(rescan_result)
+        print_rescan_processing_result(rescan_result)
         return 1 if rescan_result.failures else 0
 
     if args.scan:
