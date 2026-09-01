@@ -50,6 +50,29 @@ Run the script with one MP3 file path:
 python summarize_audio.py "D:\Documents\Personal\audio\in\2026-08-30 11_10_13.mp3"
 ```
 
+To process only audio files not already represented in the master summary:
+
+```powershell
+.venv\Scripts\python.exe summarize_audio.py --scan
+```
+
+To deliberately regenerate every valid top-level input file using the current
+`prompt.md`, run a rescan:
+
+```powershell
+.venv\Scripts\python.exe summarize_audio.py --rescan
+```
+
+AudioBuddy first reports how many valid files it selected and how many entries
+it skipped. It then asks for confirmation before starting any paid Gemini work.
+Only `y` or `yes` proceeds; every other response cancels without processing.
+Use `--rescan` after an intentional prompt change or when you otherwise want
+fresh summaries for the entire input archive.
+
+You can double-click `run-audiobuddy-scan.bat` to scan for new files, or
+`run-audiobuddy-rescan.bat` to start the same confirmed rescan flow. Both leave
+the command window open so the final result can be reviewed.
+
 Input filenames must match this format:
 
 ```text
@@ -159,8 +182,6 @@ Temporary trimmed files are deleted after processing completes or fails.
 
 ## Phase 2 Ideas
 
-These are intentionally not implemented in Phase 1:
+Still to consider:
 
 - Split longer audio into smaller chunks, for example 30-minute segments.
-- Scan the input directory and summarize only new audio files.
-- Track filenames, timestamps, and summaries in one master file.
