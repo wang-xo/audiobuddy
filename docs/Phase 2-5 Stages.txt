@@ -53,3 +53,15 @@ work begins.
    - Confirm new numbered individual outputs are created.
    - Confirm master entries are replaced, chronological, and use the revised headings.
    - Review final processed, skipped, and failed totals.
+
+Completed 1 September 2026:
+
+- The full rescan selected 91 valid files and completed with 88 processed,
+  0 skipped, and 3 transient Gemini failures.
+- A narrow follow-up retry recovered one of those files.
+- The master summary is chronological, parseable, and has 90 entries; all 90
+  use the revised Detailed Summary and Discussion Path headings.
+- Two low-priority recordings remain deferred for a later single-file retry:
+  2026-08-10 15_59_59.mp3 and 2026-08-17 08_10_11.mp3. Their failures were
+  Gemini service errors after the configured retry/fallback behavior, not local
+  processing or master-summary errors.
