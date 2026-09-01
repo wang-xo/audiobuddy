@@ -139,6 +139,12 @@ class BatchProcessingResult:
 
 
 @dataclass(frozen=True)
+class RescanPreflight:
+    selected_audio: list[AudioInput]
+    skipped_files: list[SkippedInputFile]
+
+
+@dataclass(frozen=True)
 class MasterSummaryEntry:
     source_filename: str
     source_audio_path: Path
@@ -670,6 +676,40 @@ def select_all_audio_files(discovery: InputDiscovery) -> list[AudioInput]:
     return list(discovery.valid_audio)
 
 
+def prepare_rescan(
+    input_dir: Path = INPUT_DIR,
+    master_path: Path = MASTER_SUMMARY_PATH,
+) -> RescanPreflight:
+    """Validate the master and prepare every valid input for confirmation."""
+    discovery = discover_input_files(input_dir)
+    read_master_entries(master_path)
+    return RescanPreflight(
+        selected_audio=select_all_audio_files(discovery),
+        skipped_files=list(discovery.skipped_files),
+    )
+
+
+def confirm_rescan(selected_count: int) -> bool:
+    """Ask for explicit approval before starting paid rescan work."""
+    try:
+        response = input(
+            "This will reprocess "
+            f"{selected_count} audio files using the current prompt.md. Continue? [y/N] "
+        )
+    except EOFError:
+        return False
+
+    return response.strip().lower() in {"y", "yes"}
+
+
+def print_rescan_preflight(preflight: RescanPreflight) -> None:
+    print(
+        "Rescan preflight: "
+        f"selected {len(preflight.selected_audio)}, "
+        f"skipped {len(preflight.skipped_files)}."
+    )
+
+
 def replace_or_add_master_entry(
     existing_entries: list[ParsedMasterEntry],
     current_entry: MasterSummaryEntry,
@@ -1042,11 +1082,25 @@ def main() -> int:
     args = parse_args()
 
     if args.rescan:
-        print(
-            "Failure: --rescan is not available until Phase 2-5 is complete.",
-            file=sys.stderr,
-        )
-        return 2
+        try:
+            rescan_preflight = prepare_rescan()
+        except ValidationError as error:
+            print(f"Failure: {error}", file=sys.stderr)
+            return 1
+        except MasterSummaryError as error:
+            print(f"Failure: {error}", file=sys.stderr)
+            return 1
+
+        print_rescan_preflight(rescan_preflight)
+        if not rescan_preflight.selected_audio:
+            print("No valid audio files found.")
+            return 0
+        if not confirm_rescan(len(rescan_preflight.selected_audio)):
+            print("Rescan cancelled. No audio files were processed.")
+            return 0
+
+        print("Rescan confirmed. Processing will be available in Phase 2-5-4.")
+        return 0
 
     if args.scan:
         try:
