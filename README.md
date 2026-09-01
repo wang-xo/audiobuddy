@@ -171,6 +171,16 @@ Unknown action item owners are labeled `unknown`.
 - Missing FFmpeg: install FFmpeg and ensure `ffmpeg` and `ffprobe` are on PATH.
 - Gemini API failure: retry later or check quota, billing, and API-key access.
 
+## Gemini Diagnostics
+
+AudioBuddy writes timestamped Gemini status messages to the terminal for each
+upload and model-generation attempt. Upload requests have a five-minute
+deadline; generation requests have a ten-minute deadline. A deadline failure is
+treated as transient, so the existing retry policy can retry the same source
+file. AudioBuddy tries Gemini 3.6 Flash first, then Gemini 3.7 Flash when the
+first model returns a transient failure. This model order is scheduled for
+review on 1 January 2027; see `docs/Gemini Model Decision.txt` for the reason.
+
 ## Silence Trimming
 
 For files longer than 10 minutes, AudioBuddy uses FFmpeg to remove long silence

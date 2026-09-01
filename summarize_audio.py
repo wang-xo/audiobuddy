@@ -20,7 +20,7 @@ from pathlib import Path
 
 
 API_KEY_NAME = "GEMINI_API_KEY"
-GEMINI_MODELS = ("gemini-3.7-flash", "gemini-3.6-flash")
+GEMINI_MODELS = ("gemini-3.6-flash", "gemini-3.7-flash")
 INPUT_DIR = Path(r"D:\Documents\Personal\audio\in")
 OUTPUT_DIR = Path(r"D:\Documents\Personal\audio\out")
 MASTER_SUMMARY_PATH = OUTPUT_DIR / "master-summary.md"
@@ -31,6 +31,8 @@ SILENCE_THRESHOLD_DB = "-30dB"
 RETAINED_SILENCE_SECONDS = 1.0
 MINIMUM_TRIMMED_SECONDS = 1.0
 TRANSIENT_RETRY_DELAYS_SECONDS = (2, 4, 8)
+GEMINI_UPLOAD_TIMEOUT_MS = 5 * 60 * 1000
+GEMINI_GENERATION_TIMEOUT_SECONDS = 10 * 60
 FILENAME_TIMESTAMP_PATTERN = re.compile(
     r"^(?P<date>\d{4}-\d{2}-\d{2}) (?P<time>\d{2}_\d{2}_\d{2})$"
 )
@@ -863,8 +865,16 @@ def is_transient_gemini_error(error: Exception) -> bool:
             "api_error",
             "too_many_requests",
             "server disconnected",
+            "timed out",
+            "timeout",
         )
     )
+
+
+def print_gemini_timing(message: str) -> None:
+    """Emit a timestamped, credential-free Gemini workflow event."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] Gemini: {message}", file=sys.stderr, flush=True)
 
 
 def generate_gemini_summary(
@@ -877,15 +887,44 @@ def generate_gemini_summary(
             "Missing dependency 'google-genai'. Install requirements.txt first."
         ) from error
 
-    client = genai.Client(api_key=os.environ[API_KEY_NAME])
+    client = genai.Client(
+        api_key=os.environ[API_KEY_NAME],
+        http_options={
+            "timeout": GEMINI_UPLOAD_TIMEOUT_MS,
+            "retry_options": {"attempts": 1},
+        },
+    )
 
+    upload_started_at = time.monotonic()
+    print_gemini_timing(
+        f"upload started for {audio_input.path.name} "
+        f"(timeout {GEMINI_UPLOAD_TIMEOUT_MS // 1000}s)."
+    )
     try:
         uploaded_file = client.files.upload(file=audio_processing.upload_path)
     except Exception as error:
-        raise GeminiIntegrationError(f"Audio upload failed: {error}") from error
+        elapsed_seconds = time.monotonic() - upload_started_at
+        print_gemini_timing(
+            f"upload failed for {audio_input.path.name} after {elapsed_seconds:.1f}s: "
+            f"{type(error).__name__}."
+        )
+        raise GeminiIntegrationError(
+            f"Audio upload failed after {elapsed_seconds:.1f}s: {error}"
+        ) from error
+
+    upload_elapsed_seconds = time.monotonic() - upload_started_at
+    print_gemini_timing(
+        f"upload completed for {audio_input.path.name} "
+        f"in {upload_elapsed_seconds:.1f}s."
+    )
 
     last_error: Exception | None = None
     for model in GEMINI_MODELS:
+        generation_started_at = time.monotonic()
+        print_gemini_timing(
+            f"generation started for {audio_input.path.name} with {model} "
+            f"(timeout {GEMINI_GENERATION_TIMEOUT_SECONDS}s)."
+        )
         try:
             response = client.interactions.create(
                 model=model,
@@ -900,13 +939,24 @@ def generate_gemini_summary(
                         "mime_type": uploaded_file.mime_type,
                     },
                 ],
+                timeout=GEMINI_GENERATION_TIMEOUT_SECONDS,
             )
             response_text = getattr(response, "output_text", "") or ""
             if not response_text.strip():
                 raise GeminiIntegrationError("Gemini returned an empty summary.")
+            generation_elapsed_seconds = time.monotonic() - generation_started_at
+            print_gemini_timing(
+                f"generation completed for {audio_input.path.name} with {model} "
+                f"in {generation_elapsed_seconds:.1f}s."
+            )
             return GeminiSummary(markdown=clean_markdown_response(response_text), model=model)
         except Exception as error:
             last_error = error
+            generation_elapsed_seconds = time.monotonic() - generation_started_at
+            print_gemini_timing(
+                f"generation failed for {audio_input.path.name} with {model} "
+                f"after {generation_elapsed_seconds:.1f}s: {type(error).__name__}."
+            )
             if not is_transient_gemini_error(error):
                 break
 

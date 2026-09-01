@@ -1,0 +1,24 @@
+Gemini Model Decision
+
+Decision date: 1 September 2026
+Review date: 1 January 2027
+
+Decision:
+
+Use gemini-3.6-flash as the primary AudioBuddy summarization model.
+Use gemini-3.7-flash only as the fallback for transient 3.6 failures.
+
+Reasoning:
+
+The previous order used gemini-3.7-flash first. During controlled live testing
+on 1 September 2026, both tested audio files uploaded successfully in about
+1.7 seconds, but gemini-3.7-flash returned InternalServerError after about
+48 to 50 seconds. gemini-3.6-flash then completed both summaries successfully
+in about 10 to 28 seconds.
+
+A text-only gemini-3.6-flash request also succeeded in about 9 seconds. This
+indicates that the immediate reliability issue is gemini-3.7-flash generation,
+not the API key, account credit, file upload, or local audio processing.
+
+Review this order on 1 January 2027, or sooner if Gemini 3.7 Flash becomes
+consistently reliable in controlled AudioBuddy tests.
