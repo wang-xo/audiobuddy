@@ -1,0 +1,55 @@
+Phase 2-5 checkpoints:
+
+Goal:
+
+Add a deliberate --rescan command that regenerates every valid top-level input
+file using the current prompt.md. This is the intentional migration path after
+a prompt change. It must require interactive confirmation before any paid API
+work begins.
+
+1. Add --rescan command handling.
+   - Make <audio-file>, --scan, and --rescan mutually exclusive.
+   - Preserve existing single-file and --scan behavior.
+   - Update CLI help text.
+
+2. Discover every eligible input file.
+   - Reuse the existing top-level discovery and validation behavior.
+   - Select all valid timestamp-named MP3 files, regardless of master status.
+   - Continue reporting and skipping invalid files, non-MP3 files, and directories.
+   - Sort selected files chronologically.
+
+3. Preflight before paid work.
+   - Parse the existing master summary before prompting for confirmation.
+   - Fail clearly and make no API calls if master markers are malformed.
+   - Report the number of valid files selected and the number of skipped files.
+   - Ask: "This will reprocess N audio files using the current prompt.md. Continue? [y/N]"
+   - Treat only y or yes, case-insensitively, as approval. Any other input cancels successfully with no changes.
+
+4. Reprocess safely.
+   - Reuse the existing sequential processor and 2, 4, and 8 second transient retry behavior.
+   - For each success, create a numbered individual summary and replace that source filename's master entry with the newest output.
+   - Preserve chronological master order.
+   - Continue after individual failures; leave the prior master entry unchanged for each failed file.
+
+5. Report final results.
+   - Report processed, skipped, failed, and cancelled outcomes clearly.
+   - Return a nonzero exit code if one or more selected files fail.
+   - Return success with no processing when the user declines confirmation or no valid files are found.
+
+6. Add local tests.
+   - Test CLI mutual exclusivity for --rescan.
+   - Test all-valid-file selection despite existing master entries.
+   - Test malformed-master preflight stops before confirmation or API setup.
+   - Test confirmation accepts y and yes only, and cancellation makes no changes.
+   - Test sequential processing, partial failure continuation, numbered individual outputs, and master replacement behavior with fakes.
+
+7. Update documentation and add a launcher.
+   - Document --rescan, its confirmation step, and its use after a prompt change in README.md.
+   - Add run-audiobuddy-rescan.bat with the same visible status and confirmation flow as the scan launcher.
+
+8. Run the intentional migration smoke test.
+   - Review the selected count and approve the confirmation prompt.
+   - Reprocess the current input archive using the Phase 2-4 prompt format.
+   - Confirm new numbered individual outputs are created.
+   - Confirm master entries are replaced, chronological, and use the revised headings.
+   - Review final processed, skipped, and failed totals.

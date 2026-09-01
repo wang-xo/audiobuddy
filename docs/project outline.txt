@@ -41,6 +41,7 @@ Phase 2-1. Parse the audio file and trim long silence.
 Phase 2-2. Summary tracking. Record the filenames, timestamps, and summaries in one master file. Individual summary files should still be created as they are today.
 Phase 2-3. Simplify the UX. Accept a command to scan the current input directory, identify any new audio files, and work with only the new ones.
 Phase 2-4. Redesign the summary format by replacing overlapping summary sections with Detailed Summary and Discussion Path. Keep prompt.md as the authoritative source.
+Phase 2-5. Add --rescan to deliberately regenerate all valid input files using the current prompt.md, with interactive confirmation before paid API work begins.
 
 Silence trimming notes:
 
