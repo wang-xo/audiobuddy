@@ -1017,10 +1017,36 @@ def process_new_input_files(
         )
         for audio_input in selection.already_processed
     )
+
+    return process_selected_audio_files(
+        selection.new_audio,
+        skipped_files,
+        master_path,
+    )
+
+
+def process_rescan(
+    preflight: RescanPreflight,
+    master_path: Path = MASTER_SUMMARY_PATH,
+) -> BatchProcessingResult:
+    """Reprocess every file approved by a completed rescan preflight."""
+    return process_selected_audio_files(
+        preflight.selected_audio,
+        preflight.skipped_files,
+        master_path,
+    )
+
+
+def process_selected_audio_files(
+    selected_audio: list[AudioInput],
+    skipped_files: list[SkippedInputFile],
+    master_path: Path,
+) -> BatchProcessingResult:
+    """Process selected audio files sequentially while collecting failures."""
     processed: list[ProcessingOutcome] = []
     failures: list[BatchFailure] = []
 
-    if not selection.new_audio:
+    if not selected_audio:
         return BatchProcessingResult(
             selected_audio=[],
             processed=processed,
@@ -1031,7 +1057,7 @@ def process_new_input_files(
     load_dotenv(Path(__file__).resolve().parent / ".env")
     require_api_key()
 
-    for audio_input in selection.new_audio:
+    for audio_input in selected_audio:
         try:
             processed.append(
                 process_audio_with_transient_retries(audio_input, master_path)
@@ -1047,7 +1073,7 @@ def process_new_input_files(
             failures.append(BatchFailure(audio_input, error))
 
     return BatchProcessingResult(
-        selected_audio=selection.new_audio,
+        selected_audio=selected_audio,
         processed=processed,
         skipped_files=skipped_files,
         failures=failures,
@@ -1099,8 +1125,14 @@ def main() -> int:
             print("Rescan cancelled. No audio files were processed.")
             return 0
 
-        print("Rescan confirmed. Processing will be available in Phase 2-5-4.")
-        return 0
+        try:
+            rescan_result = process_rescan(rescan_preflight)
+        except ValidationError as error:
+            print(f"Failure: {error}", file=sys.stderr)
+            return 1
+
+        print_batch_processing_result(rescan_result)
+        return 1 if rescan_result.failures else 0
 
     if args.scan:
         try:
