@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from summarize_audio import ValidationError, discover_input_files
+from summarize_audio import ValidationError, discover_input_files, validate_audio_file
 
 
 class InputDiscoveryTests(unittest.TestCase):
@@ -24,6 +24,9 @@ class InputDiscoveryTests(unittest.TestCase):
         (self.input_directory / "2026-08-29 16_51_37.mp3").write_text(
             "audio", encoding="utf-8"
         )
+        (self.input_directory / "2026-08-30 12_00_00.ogg").write_text(
+            "audio", encoding="utf-8"
+        )
         (self.input_directory / "invalid.mp3").write_text("audio", encoding="utf-8")
         (self.input_directory / "notes.txt").write_text("notes", encoding="utf-8")
         nested_directory = self.input_directory / "nested"
@@ -36,7 +39,11 @@ class InputDiscoveryTests(unittest.TestCase):
 
         self.assertEqual(
             [audio.path.name for audio in discovery.valid_audio],
-            ["2026-08-29 16_51_37.mp3", "2026-08-30 11_10_13.mp3"],
+            [
+                "2026-08-29 16_51_37.mp3",
+                "2026-08-30 11_10_13.mp3",
+                "2026-08-30 12_00_00.ogg",
+            ],
         )
         self.assertEqual(
             {skipped.path.name for skipped in discovery.skipped_files},
@@ -48,6 +55,20 @@ class InputDiscoveryTests(unittest.TestCase):
 
         with self.assertRaises(ValidationError):
             discover_input_files(missing_directory)
+
+
+
+    def test_accepts_timestamp_named_ogg_and_rejects_other_extensions(self) -> None:
+        ogg_path = self.input_directory / "2026-08-30 12_00_00.ogg"
+        wav_path = self.input_directory / "2026-08-30 12_00_00.wav"
+        ogg_path.write_text("audio", encoding="utf-8")
+        wav_path.write_text("audio", encoding="utf-8")
+
+        audio_input = validate_audio_file(str(ogg_path))
+
+        self.assertEqual(audio_input.path, ogg_path)
+        with self.assertRaisesRegex(ValidationError, r"accepts .mp3 and .ogg"):
+            validate_audio_file(str(wav_path))
 
 
 if __name__ == "__main__":

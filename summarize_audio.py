@@ -1,6 +1,6 @@
-"""Summarize one local MP3 audio file with Gemini.
+"""Summarize one local MP3 or OGG audio file with Gemini.
 
-Phase 1-4 validates one MP3 input, uploads it to Gemini, asks for a fixed
+Phase 1-4 validates one audio input, uploads it to Gemini, asks for a fixed
 Markdown summary, and saves the result in the configured output folder.
 """
 
@@ -21,6 +21,7 @@ from pathlib import Path
 
 API_KEY_NAME = "GEMINI_API_KEY"
 GEMINI_MODELS = ("gemini-3.6-flash", "gemini-3.7-flash")
+SUPPORTED_AUDIO_SUFFIXES = frozenset({".mp3", ".ogg"})
 INPUT_DIR = Path(r"D:\Documents\Personal\audio\in")
 OUTPUT_DIR = Path(r"D:\Documents\Personal\audio\out")
 MASTER_SUMMARY_PATH = OUTPUT_DIR / "master-summary.md"
@@ -166,12 +167,12 @@ class ParsedMasterEntry:
 
 def parse_args(arguments: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Summarize one local MP3 audio file with Gemini."
+        description="Summarize one local MP3 or OGG audio file with Gemini."
     )
     parser.add_argument(
         "audio_file",
         nargs="?",
-        help="Path to one MP3 audio file to summarize or reprocess.",
+        help="Path to one MP3 or OGG audio file to summarize or reprocess.",
     )
     parser.add_argument(
         "--scan",
@@ -228,8 +229,8 @@ def parse_filename_timestamp(audio_path: Path) -> tuple[str, str]:
     match = FILENAME_TIMESTAMP_PATTERN.match(audio_path.stem)
     if not match:
         raise ValidationError(
-            "Audio filename must match 'YYYY-MM-DD HH_MM_SS.mp3', "
-            "for example '2026-08-30 11_10_13.mp3'."
+            "Audio filename must match 'YYYY-MM-DD HH_MM_SS' before the .mp3 "
+            "or .ogg extension, for example '2026-08-30 11_10_13.mp3'."
         )
 
     raw_datetime = f"{match.group('date')} {match.group('time')}"
@@ -257,8 +258,10 @@ def validate_audio_file(audio_file: str) -> AudioInput:
     if not audio_path.is_file():
         raise ValidationError(f"Input file does not exist: {audio_path}")
 
-    if audio_path.suffix.lower() != ".mp3":
-        raise ValidationError("Unsupported file format. Phase 1 accepts only .mp3 files.")
+    if audio_path.suffix.lower() not in SUPPORTED_AUDIO_SUFFIXES:
+        raise ValidationError(
+            "Unsupported file format. AudioBuddy accepts .mp3 and .ogg files."
+        )
 
     date_text, time_text = parse_filename_timestamp(audio_path)
     return AudioInput(path=audio_path, date_text=date_text, time_text=time_text)
@@ -279,8 +282,8 @@ def discover_input_files(input_dir: Path = INPUT_DIR) -> InputDiscovery:
             )
             continue
 
-        if input_path.suffix.lower() != ".mp3":
-            skipped_files.append(SkippedInputFile(input_path, "not an MP3 file"))
+        if input_path.suffix.lower() not in SUPPORTED_AUDIO_SUFFIXES:
+            skipped_files.append(SkippedInputFile(input_path, "not an MP3 or OGG file"))
             continue
 
         try:

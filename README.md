@@ -1,16 +1,16 @@
 # AudioBuddy
 
-AudioBuddy is a small local Python CLI tool that summarizes one MP3 audio file
+AudioBuddy is a small local Python CLI tool that summarizes one MP3 or OGG audio file
 with the Google Gemini API.
 
 ## Phase 1
 
-Phase 1 supports a single local MP3 file at a time.
+Phase 1 supports a single local MP3 or OGG file at a time.
 
 The script:
 
 - reads `GEMINI_API_KEY` from the environment or a local `.env` file
-- rejects missing files and non-MP3 inputs
+- rejects missing files and unsupported audio formats
 - parses the date and time from filenames like `2026-08-30 11_10_13.mp3`
 - reads the original audio duration with `ffprobe`
 - skips silence trimming for files that are 10 minutes or shorter
@@ -44,7 +44,7 @@ Do not commit `.env`. It is ignored by Git.
 
 ## Usage
 
-Run the script with one MP3 file path:
+Run the script with one MP3 or OGG file path:
 
 ```powershell
 python summarize_audio.py "D:\Documents\Personal\audio\in\2026-08-30 11_10_13.mp3"
@@ -77,6 +77,7 @@ Input filenames must match this format:
 
 ```text
 YYYY-MM-DD HH_MM_SS.mp3
+YYYY-MM-DD HH_MM_SS.ogg
 ```
 
 For example, `2026-08-30 11_10_13.mp3` is treated as:
@@ -167,7 +168,7 @@ Unknown action item owners are labeled `unknown`.
 
 - Missing API key: set `GEMINI_API_KEY` in the environment or `.env`.
 - Nonexistent input file: check the file path.
-- Unsupported file: Phase 1 accepts only `.mp3` files.
+- Unsupported file: AudioBuddy accepts `.mp3` and `.ogg` files.
 - Missing FFmpeg: install FFmpeg and ensure `ffmpeg` and `ffprobe` are on PATH.
 - Gemini API failure: retry later or check quota, billing, and API-key access.
 
