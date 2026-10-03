@@ -164,6 +164,36 @@ The generated Markdown uses this fixed heading structure:
 
 Unknown action item owners are labeled `unknown`.
 
+## Transcripts
+
+Use the separate transcription command for one recording when a complete,
+turn-by-turn transcript is needed:
+
+```powershell
+.venv\Scripts\python.exe transcribe_audio.py "D:\Documents\Personal\audio\in\2026-08-30 11_10_13.mp3"
+```
+
+For a double-clickable option, run `run-audiobuddy-transcript.bat` and enter
+only the audio filename from `D:\Documents\Personal\audio\in` when prompted.
+For example, enter `2026-08-30 11_10_13.mp3`, not the full path.
+
+It accepts the same timestamp-named MP3 and OGG inputs as the summary command,
+uses the same local silence-trimming and Gemini reliability behavior, and writes
+an individual file such as:
+
+```text
+D:\Documents\Personal\audio\out\2026-08-30 11_10_13-transcript.md
+```
+
+Existing transcript names receive a numeric suffix. Transcript runs do not add
+to, replace, or rebuild `master-summary.md`.
+
+`transcript-prompt.md` is the authoritative source for the transcript prompt.
+It instructs Gemini to return only timestamped turns, translate non-English
+speech faithfully to English, use stable numbered speaker labels by default,
+mark confident guesses in brackets, and mark wholly unintelligible speech as
+`[inaudible]`.
+
 ## Common Errors
 
 - Missing API key: set `GEMINI_API_KEY` in the environment or `.env`.

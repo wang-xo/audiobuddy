@@ -1,0 +1,51 @@
+Phase 3 checkpoints:
+
+Goal:
+
+Add a separate command for a complete, timestamped, turn-by-turn transcript of
+one audio recording. The command must be independent from summary scanning and
+master-summary.md.
+
+1. Define the transcript contract.
+   - Make transcript-prompt.md the authoritative prompt source.
+   - Return only transcript turns in chronological order.
+   - Start every turn with [HH:MM:SS] and a speaker label.
+   - Translate non-English speech faithfully into English.
+   - Use stable numbered speaker labels by default.
+   - Use [guess] for a confident uncertain phrase and [inaudible] for wholly
+     unintelligible speech.
+
+2. Add a separate one-file command.
+   - Create transcribe_audio.py with exactly one explicit MP3 or OGG input.
+   - Reuse local validation, FFmpeg silence trimming, Gemini timeouts,
+     diagnostics, and primary/fallback models.
+   - Do not add a scan or rescan mode in this phase.
+
+3. Write transcript output safely.
+   - Write <original-name>-transcript.md to the established output folder.
+   - Create numbered alternatives on a name conflict.
+   - Do not create, update, replace, or rebuild any master-summary.md entry.
+
+4. Verify locally.
+   - Test the prompt contract, output naming, audio workflow, temporary-file
+     cleanup, and lack of master-summary integration.
+   - Run the complete local test suite and a syntax check.
+
+5. Run one controlled live smoke test.
+   - Use the established default test recording.
+   - Confirm the transcript has only timestamped turns, English translations,
+     stable speaker numbering, and a separate individual output file.
+
+Completed 3 October 2026:
+
+- Added the separate transcribe_audio.py command and transcript-prompt.md.
+- The command reuses local validation, silence trimming, Gemini diagnostics,
+  five-minute upload timeout, ten-minute generation timeout, and the established
+  Gemini 3.6 Flash primary / Gemini 3.7 Flash transient-fallback order.
+- Local verification passed with 43 tests.
+- The controlled default-file smoke test completed with Gemini 3.6 Flash,
+  generated a timestamped individual transcript, and made no master-summary
+  reference to the transcript output.
+- Added run-audiobuddy-transcript.bat. It prompts for a filename from the
+  established input folder, verifies that file exists locally, and preserves
+  the final command output for review.

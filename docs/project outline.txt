@@ -33,7 +33,8 @@ Notes:
 - Assume the input audio files are mp3 format in this folder D:\Documents\Personal\audio\in
 - Parse the filename for the date and time. If the audio filename is 2026-08-30 11_10_13.mp3 then the date is 30 August 2026 and the time is 11:10:13.
 - Output md file should be in created/updated in this folder: D:\Documents\Personal\audio\out
-- Do not accept non-mp3 files and warn if file format is different than expected
+- Accept timestamp-named MP3 and OGG files and warn if the file format is
+  different than expected.
 - CLI output should indicate success or failure with reason.
 
 Future iterations (preserve these in the README as Phase 2, do not work on them until Phase 1 is complete):
@@ -42,6 +43,21 @@ Phase 2-2. Summary tracking. Record the filenames, timestamps, and summaries in 
 Phase 2-3. Simplify the UX. Accept a command to scan the current input directory, identify any new audio files, and work with only the new ones.
 Phase 2-4. Redesign the summary format by replacing overlapping summary sections with Detailed Summary and Discussion Path. Keep prompt.md as the authoritative source.
 Phase 2-5. Add --rescan to deliberately regenerate all valid input files using the current prompt.md, with interactive confirmation before paid API work begins.
+
+Phase 3. Add a separate single-file transcription command.
+- Create transcribe_audio.py rather than adding a mode to summarize_audio.py.
+- Accept one timestamp-named MP3 or OGG input file and write an individual
+  <original-name>-transcript.md file to D:\Documents\Personal\audio\out.
+- Reuse the established local validation, FFmpeg preprocessing, Gemini
+  timeouts, diagnostics, and model fallback behavior.
+- Do not add transcript entries to master-summary.md.
+- Keep transcript-prompt.md as the authoritative transcription prompt.
+- Produce only chronological transcript turns in English. Translate
+  non-English speech faithfully to English, and use [HH:MM:SS] at the start
+  of every turn.
+- Use stable numbered labels (Speaker 1, Speaker 2, and so on) unless a speaker
+  identity is reliably evident. Mark a confident unintelligible guess with
+  [brackets] and wholly unintelligible speech as [inaudible].
 
 Silence trimming notes:
 
@@ -90,8 +106,9 @@ Batch scan requirements:
 
 - Add a --scan command that inspects only the top level of D:\Documents\Personal\audio\in. Do not recurse into subfolders.
 - Preserve the existing single-file command for explicit processing or reprocessing of one file.
-- Accept only MP3 files whose filenames use the existing YYYY-MM-DD HH_MM_SS.mp3 convention.
-- Report and skip non-MP3 files and invalid filenames; continue processing valid files.
+- Accept only MP3 or OGG files whose filenames use the existing
+  YYYY-MM-DD HH_MM_SS filename convention.
+- Report and skip unsupported files and invalid filenames; continue processing valid files.
 - Read the master file once and treat a source filename already represented there as already processed.
 - Process only new valid files, in chronological filename order.
 - If no new valid files are found, print "No new audio files found." and exit successfully.
