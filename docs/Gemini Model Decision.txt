@@ -1,24 +1,26 @@
 Gemini Model Decision
 
-Decision date: 1 September 2026
-Review date: 1 January 2027
+Decision date: 11 October 2026
+Review date: 1 April 2027
 
 Decision:
 
-Use gemini-3.6-flash as the primary AudioBuddy summarization model.
-Use gemini-3.7-flash only as the fallback for transient 3.6 failures.
+Use gemini-3.8-flash as the primary AudioBuddy summarization and transcription
+model.
+Use gemini-3.6-flash only as the fallback for transient 3.8 failures.
 
 Reasoning:
 
-The previous order used gemini-3.7-flash first. During controlled live testing
-on 1 September 2026, both tested audio files uploaded successfully in about
-1.7 seconds, but gemini-3.7-flash returned InternalServerError after about
-48 to 50 seconds. gemini-3.6-flash then completed both summaries successfully
-in about 10 to 28 seconds.
+Google deprecated gemini-3.7-flash on 8 October 2026 and replaced it with
+gemini-3.8-flash. Google documents gemini-3.8-flash as the current stable Flash
+model, with support for audio input and text output. Keeping gemini-3.6-flash
+as the fallback retains the previously reliable model as an independent recovery
+path for transient primary-model failures.
 
-A text-only gemini-3.6-flash request also succeeded in about 9 seconds. This
-indicates that the immediate reliability issue is gemini-3.7-flash generation,
-not the API key, account credit, file upload, or local audio processing.
+The replaced 3.7 model had returned InternalServerError during controlled live
+testing on 1 September 2026, while 3.6 completed the same summaries. The new
+order removes a deprecated model string and preserves that demonstrated 3.6
+fallback behavior.
 
-Review this order on 1 January 2027, or sooner if Gemini 3.7 Flash becomes
-consistently reliable in controlled AudioBuddy tests.
+Review this order on 1 April 2027, or sooner if controlled AudioBuddy tests
+show a persistent Gemini 3.8 Flash reliability or quality problem.

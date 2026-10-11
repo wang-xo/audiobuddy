@@ -57,7 +57,7 @@ class TranscriptGeminiIntegrationTests(unittest.TestCase):
                 self.audio_input, self.audio_processing
             )
 
-        self.assertEqual(transcript.model, "gemini-3.6-flash")
+        self.assertEqual(transcript.model, "gemini-3.8-flash")
         self.assertEqual(transcript.text, "[00:00:00] Speaker 1: Hello.\n")
         genai.Client.assert_called_once_with(
             api_key="test-key",
@@ -83,10 +83,10 @@ class TranscriptGeminiIntegrationTests(unittest.TestCase):
                 self.audio_input, self.audio_processing
             )
 
-        self.assertEqual(transcript.model, "gemini-3.7-flash")
+        self.assertEqual(transcript.model, "gemini-3.6-flash")
         self.assertEqual(
             [request.kwargs["model"] for request in client.interactions.create.call_args_list],
-            ["gemini-3.6-flash", "gemini-3.7-flash"],
+            ["gemini-3.8-flash", "gemini-3.6-flash"],
         )
 
 

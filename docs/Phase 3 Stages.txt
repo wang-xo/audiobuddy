@@ -40,8 +40,9 @@ Completed 3 October 2026:
 
 - Added the separate transcribe_audio.py command and transcript-prompt.md.
 - The command reuses local validation, silence trimming, Gemini diagnostics,
-  five-minute upload timeout, ten-minute generation timeout, and the established
-  Gemini 3.6 Flash primary / Gemini 3.7 Flash transient-fallback order.
+  five-minute upload timeout, ten-minute generation timeout, and the model
+  fallback order that was current at the time of completion. The current model
+  decision is maintained separately in Gemini Model Decision.txt.
 - Local verification passed with 43 tests.
 - The controlled default-file smoke test completed with Gemini 3.6 Flash,
   generated a timestamped individual transcript, and made no master-summary

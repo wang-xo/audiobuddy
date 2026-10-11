@@ -20,7 +20,7 @@ from pathlib import Path
 
 
 API_KEY_NAME = "GEMINI_API_KEY"
-GEMINI_MODELS = ("gemini-3.6-flash", "gemini-3.7-flash")
+GEMINI_MODELS = ("gemini-3.8-flash", "gemini-3.6-flash")
 SUPPORTED_AUDIO_SUFFIXES = frozenset({".mp3", ".ogg"})
 INPUT_DIR = Path(r"D:\Documents\Personal\audio\in")
 OUTPUT_DIR = Path(r"D:\Documents\Personal\audio\out")

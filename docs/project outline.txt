@@ -59,6 +59,44 @@ Phase 3. Add a separate single-file transcription command.
   identity is reliably evident. Mark a confident unintelligible guess with
   [brackets] and wholly unintelligible speech as [inaudible].
 
+Model choice update, 11 October 2026:
+- Use gemini-3.8-flash as the default model for summaries and transcripts.
+- Keep gemini-3.6-flash as the fallback after a transient Gemini 3.8 failure.
+- Do not call gemini-3.7-flash; Google deprecated it on 8 October 2026.
+
+Phase 4. Friend-accessible single-file web workflow (planning only).
+- Scope: one audio file per request, with a user-selected summary, transcript,
+  or both result. Accept files up to 100 MB and recordings up to four hours.
+  Do not add batch processing, shared archives, or team workspaces in this
+  phase.
+- Front end: a small Vercel-hosted page for choosing an audio file, selecting
+  the requested result, showing processing status, and downloading completed
+  Markdown files.
+- Upload: send audio directly from the browser to private object storage using
+  a short-lived upload token. Do not route large media through a Vercel Function.
+- Processing: run the existing Python pipeline in a container-based worker that
+  has FFmpeg available. The worker receives an asynchronous job, downloads the
+  private input, performs the established processing and Gemini call, and writes
+  the requested result to private storage.
+- Delivery: expose the completed output through an opaque job page and a
+  short-lived signed download link. Email the opaque result-page link when an
+  address was supplied. Show clear failed-job messages without exposing
+  internal errors or credentials.
+- Minimal protection: require a shared invite passphrase at upload time, rate
+  limit requests, allow at most one active job per invite, and keep the Gemini
+  API key only in the worker's server-side secret store. A credit cap limits
+  financial loss but does not protect private audio, so private storage and
+  automatic deletion remain required.
+- Data retention: automatically delete uploaded audio, generated files, and
+  job metadata after 24 hours.
+- Operational safety: enforce the 100 MB upload and four-hour duration limits;
+  add MIME/type validation, server-side file validation, request logs without
+  audio contents or API keys, and explicit per-job timeout/retry behavior.
+- Hosting decision: Vercel alone is not the audio worker. Its functions have a
+  small request-body limit and bounded execution time. Use Vercel for the web
+  page; choose a durable container worker, queue, metadata store, and private
+  object storage before implementation.
+
 Silence trimming notes:
 
 Before uploading the audio to Gemini, preprocess it locally using FFmpeg (or another relevant method).

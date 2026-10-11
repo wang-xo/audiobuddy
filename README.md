@@ -208,9 +208,9 @@ AudioBuddy writes timestamped Gemini status messages to the terminal for each
 upload and model-generation attempt. Upload requests have a five-minute
 deadline; generation requests have a ten-minute deadline. A deadline failure is
 treated as transient, so the existing retry policy can retry the same source
-file. AudioBuddy tries Gemini 3.6 Flash first, then Gemini 3.7 Flash when the
+file. AudioBuddy tries Gemini 3.8 Flash first, then Gemini 3.6 Flash when the
 first model returns a transient failure. This model order is scheduled for
-review on 1 January 2027; see `docs/Gemini Model Decision.txt` for the reason.
+review on 1 April 2027; see `docs/Gemini Model Decision.txt` for the reason.
 
 ## Silence Trimming
 

@@ -1,0 +1,73 @@
+Phase 4 planning: friend-accessible single-file web workflow
+
+Goal:
+
+Allow an invited friend to submit one audio file of up to 100 MB and four hours
+from her device and receive a selected summary, a turn-by-turn transcript, or
+both. Preserve AudioBuddy's prompt, preprocessing, timeout, fallback, and
+output behavior without exposing the Gemini API key or the user's local machine.
+
+Recommended architecture:
+
+1. Vercel hosts the small browser interface.
+   - File picker, summary/transcript/both selector, upload progress, job-status
+     page, and completed-download links.
+   - The browser uploads media directly to private object storage using a
+     short-lived token. It does not send audio through a Vercel Function.
+
+2. A durable job system runs the Python worker.
+   - The submit route creates an opaque job ID and places the job on a queue.
+   - A container worker with Python and FFmpeg downloads the private input,
+     runs the shared AudioBuddy pipeline, then writes result Markdown to
+     private storage.
+   - Job state records queued, processing, completed, or failed. It includes
+     user-safe failure messages only.
+
+3. Private delivery completes the loop.
+   - The job page polls for status using the opaque job ID.
+   - On completion, the service produces short-lived signed download links for
+     the selected summary and/or transcript outputs.
+   - When the submitter supplies an email address, send an email containing only
+     the opaque result-page link. The recording and transcript do not appear in
+     the email itself.
+   - A scheduled cleanup removes input audio, outputs, and job metadata after
+     24 hours.
+
+Why Vercel is front end, not the worker:
+
+- Vercel Functions limit request and response bodies to 4.5 MB. Typical audio
+  recordings exceed that size.
+- Browser-to-storage uploads avoid that limit, but silence trimming and a long
+  Gemini call still need a worker with FFmpeg and a durable job lifecycle.
+- A container worker avoids relying on one open browser request while Gemini is
+  processing a recording.
+
+Minimal protection model:
+
+- A shared invite passphrase is enough for the first friend-only release, but
+  it must be verified server-side before granting an upload token.
+- The Gemini API key belongs only in a server-side secret manager; never in the
+  frontend bundle, browser request, or download URL.
+- Rate-limit the passphrase and allow one active job per invite. Enforce the
+  100 MB upload and four-hour duration limits before accepting work.
+- Use private storage, opaque unguessable job IDs, signed expiring download
+  links, and automatic deletion. A 15-euro credit balance limits billing risk;
+  it does not limit privacy risk or prevent nuisance submissions.
+
+Open design decisions before implementation:
+
+Decisions recorded 11 October 2026:
+
+- Each upload chooses summary, transcript, or both.
+- The maximum upload size is 100 MB.
+- The maximum recording duration is four hours.
+- Source audio, outputs, and job metadata are deleted after 24 hours.
+- Browser download is the primary delivery mechanism. An optional email sends a
+  link to the result page after completion.
+
+Open design decisions before implementation:
+
+1. Should an email address be optional or required for every submission?
+2. Do you want the simplest all-in-one container host, or the more resilient
+   Vercel frontend plus queue/worker/private-storage architecture described
+   above?

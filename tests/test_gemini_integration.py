@@ -63,7 +63,7 @@ class GeminiIntegrationTests(unittest.TestCase):
         ):
             summary = generate_gemini_summary(self.audio_input, self.audio_processing)
 
-        self.assertEqual(summary.model, "gemini-3.6-flash")
+        self.assertEqual(summary.model, "gemini-3.8-flash")
         genai.Client.assert_called_once_with(
             api_key="test-key",
             http_options={
@@ -98,10 +98,10 @@ class GeminiIntegrationTests(unittest.TestCase):
         ):
             summary = generate_gemini_summary(self.audio_input, self.audio_processing)
 
-        self.assertEqual(summary.model, "gemini-3.7-flash")
+        self.assertEqual(summary.model, "gemini-3.6-flash")
         self.assertEqual(
             [call_args.kwargs["model"] for call_args in client.interactions.create.call_args_list],
-            ["gemini-3.6-flash", "gemini-3.7-flash"],
+            ["gemini-3.8-flash", "gemini-3.6-flash"],
         )
 
     def test_upload_timeout_is_reported_with_its_elapsed_time(self) -> None:
