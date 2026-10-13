@@ -34,6 +34,7 @@ MINIMUM_TRIMMED_SECONDS = 1.0
 TRANSIENT_RETRY_DELAYS_SECONDS = (2, 4, 8)
 GEMINI_UPLOAD_TIMEOUT_MS = 5 * 60 * 1000
 GEMINI_GENERATION_TIMEOUT_SECONDS = 10 * 60
+GEMINI_GENERATION_TIMEOUT_MS = GEMINI_GENERATION_TIMEOUT_SECONDS * 1000
 FILENAME_TIMESTAMP_PATTERN = re.compile(
     r"^(?P<date>\d{4}-\d{2}-\d{2}) (?P<time>\d{2}_\d{2}_\d{2})$"
 )
@@ -861,6 +862,7 @@ def is_transient_gemini_error(error: Exception) -> bool:
         marker in error_text
         for marker in (
             "503",
+            "504",
             "500",
             "429",
             "unavailable",
@@ -868,6 +870,8 @@ def is_transient_gemini_error(error: Exception) -> bool:
             "api_error",
             "too_many_requests",
             "server disconnected",
+            "deadline_exceeded",
+            "deadline expired",
             "timed out",
             "timeout",
         )

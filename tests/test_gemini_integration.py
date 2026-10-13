@@ -124,6 +124,13 @@ class GeminiIntegrationTests(unittest.TestCase):
     def test_timeouts_are_transient_for_file_level_retries(self) -> None:
         self.assertTrue(is_transient_gemini_error(TimeoutError("request timed out")))
 
+    def test_generation_deadline_errors_are_transient_for_file_level_retries(self) -> None:
+        self.assertTrue(
+            is_transient_gemini_error(
+                GeminiIntegrationError("504 DEADLINE_EXCEEDED")
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

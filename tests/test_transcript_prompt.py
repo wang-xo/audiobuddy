@@ -16,6 +16,7 @@ class TranscriptPromptTests(unittest.TestCase):
         self.assertIn("fully transcribe everything", prompt)
         self.assertIn("complete transcript in English", prompt)
         self.assertIn("[HH:MM:SS] Speaker 1: Spoken content", prompt)
+        self.assertIn("use [00:16:35], never [16:35]", prompt)
         self.assertIn("stable numbered speaker labels", prompt)
         self.assertIn("[inaudible]", prompt)
         self.assertIn("square brackets", prompt)

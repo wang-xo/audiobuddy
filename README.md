@@ -178,8 +178,8 @@ only the audio filename from `D:\Documents\Personal\audio\in` when prompted.
 For example, enter `2026-08-30 11_10_13.mp3`, not the full path.
 
 It accepts the same timestamp-named MP3 and OGG inputs as the summary command,
-uses the same local silence-trimming and Gemini reliability behavior, and writes
-an individual file such as:
+uses the same Gemini reliability behavior, and writes an individual file such
+as:
 
 ```text
 D:\Documents\Personal\audio\out\2026-08-30 11_10_13-transcript.md
@@ -187,6 +187,9 @@ D:\Documents\Personal\audio\out\2026-08-30 11_10_13-transcript.md
 
 Existing transcript names receive a numeric suffix. Transcript runs do not add
 to, replace, or rebuild `master-summary.md`.
+
+Transcripts deliberately skip silence trimming so their timestamps remain tied
+to the original recording timeline.
 
 `transcript-prompt.md` is the authoritative source for the transcript prompt.
 It instructs Gemini to return only timestamped turns, translate non-English
@@ -206,11 +209,14 @@ mark confident guesses in brackets, and mark wholly unintelligible speech as
 
 AudioBuddy writes timestamped Gemini status messages to the terminal for each
 upload and model-generation attempt. Upload requests have a five-minute
-deadline; generation requests have a ten-minute deadline. A deadline failure is
-treated as transient, so the existing retry policy can retry the same source
-file. AudioBuddy tries Gemini 3.8 Flash first, then Gemini 3.6 Flash when the
-first model returns a transient failure. This model order is scheduled for
-review on 1 April 2027; see `docs/Gemini Model Decision.txt` for the reason.
+deadline; summary and transcript generation requests have ten-minute deadlines. Transcript
+generation uses Gemini's Generate Content streaming endpoint with low thinking,
+which is appropriate for faithful transcription and reduces time to first output.
+A deadline failure is treated as transient, so the existing retry policy can
+retry the same source file. AudioBuddy tries Gemini 3.8 Flash first, then Gemini
+3.6 Flash when the first model returns a transient failure. This model order is
+scheduled for review on 1 April 2027; see `docs/Gemini Model Decision.txt` for
+the reason.
 
 ## Silence Trimming
 

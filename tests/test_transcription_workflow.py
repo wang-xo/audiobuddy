@@ -35,7 +35,6 @@ class TranscriptionWorkflowTests(unittest.TestCase):
     @patch("transcribe_audio.cleanup_temporary_audio")
     @patch("transcribe_audio.write_transcript", return_value=Path("transcript.md"))
     @patch("transcribe_audio.generate_gemini_transcript")
-    @patch("transcribe_audio.plan_audio_processing")
     @patch("transcribe_audio.get_audio_metadata")
     @patch("transcribe_audio.require_audio_tools")
     @patch("transcribe_audio.validate_audio_file")
@@ -44,28 +43,27 @@ class TranscriptionWorkflowTests(unittest.TestCase):
         validate_audio_file,
         require_audio_tools,
         get_audio_metadata,
-        plan_audio_processing,
         generate_gemini_transcript,
         write_transcript,
         cleanup_temporary_audio,
     ) -> None:
         validate_audio_file.return_value = self.audio_input
         get_audio_metadata.return_value = AudioMetadata(original_duration_seconds=700)
-        plan_audio_processing.return_value = self.audio_processing
         generate_gemini_transcript.return_value = self.transcript
-        cleanup_temporary_audio.return_value = self.audio_processing.upload_path
+        cleanup_temporary_audio.return_value = None
 
         outcome = transcribe_audio_file(str(self.audio_input.path))
 
         self.assertEqual(outcome.audio_input, self.audio_input)
+        self.assertEqual(outcome.audio_processing.upload_path, self.audio_input.path)
+        self.assertFalse(outcome.audio_processing.trimmed)
         self.assertEqual(outcome.output_path, Path("transcript.md"))
-        self.assertEqual(outcome.cleanup_path, self.audio_processing.upload_path)
+        self.assertIsNone(outcome.cleanup_path)
         write_transcript.assert_called_once_with(self.audio_input, self.transcript.text)
-        cleanup_temporary_audio.assert_called_once_with(self.audio_processing)
+        cleanup_temporary_audio.assert_called_once_with(outcome.audio_processing)
 
     @patch("transcribe_audio.cleanup_temporary_audio")
     @patch("transcribe_audio.generate_gemini_transcript")
-    @patch("transcribe_audio.plan_audio_processing")
     @patch("transcribe_audio.get_audio_metadata")
     @patch("transcribe_audio.require_audio_tools")
     @patch("transcribe_audio.validate_audio_file")
@@ -74,19 +72,18 @@ class TranscriptionWorkflowTests(unittest.TestCase):
         validate_audio_file,
         require_audio_tools,
         get_audio_metadata,
-        plan_audio_processing,
         generate_gemini_transcript,
         cleanup_temporary_audio,
     ) -> None:
         validate_audio_file.return_value = self.audio_input
         get_audio_metadata.return_value = AudioMetadata(original_duration_seconds=700)
-        plan_audio_processing.return_value = self.audio_processing
         generate_gemini_transcript.side_effect = GeminiIntegrationError("test failure")
 
         with self.assertRaises(GeminiIntegrationError):
             transcribe_audio_file(str(self.audio_input.path))
 
-        cleanup_temporary_audio.assert_called_once_with(self.audio_processing)
+        cleanup_temporary_audio.assert_called_once()
+        self.assertFalse(cleanup_temporary_audio.call_args.args[0].trimmed)
 
 
 if __name__ == "__main__":

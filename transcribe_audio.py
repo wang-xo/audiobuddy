@@ -11,6 +11,7 @@ from pathlib import Path
 
 from summarize_audio import (
     API_KEY_NAME,
+    GEMINI_GENERATION_TIMEOUT_MS,
     GEMINI_GENERATION_TIMEOUT_SECONDS,
     GEMINI_MODELS,
     GEMINI_UPLOAD_TIMEOUT_MS,
@@ -25,7 +26,6 @@ from summarize_audio import (
     get_audio_metadata,
     is_transient_gemini_error,
     load_dotenv,
-    plan_audio_processing,
     print_gemini_timing,
     require_api_key,
     require_audio_tools,
@@ -92,6 +92,45 @@ def write_transcript(audio_input: AudioInput, transcript: str) -> Path:
     return output_path
 
 
+def prepare_transcript_audio(
+    audio_input: AudioInput, original_duration_seconds: float
+) -> AudioProcessingResult:
+    """Keep source timing intact for a timestamped transcript."""
+    return AudioProcessingResult(
+        upload_path=audio_input.path,
+        original_duration_seconds=original_duration_seconds,
+        processed_duration_seconds=original_duration_seconds,
+        removed_seconds=0,
+        reduction_percent=0,
+        trimmed=False,
+        reason="Transcript preserves original timestamps; silence trimming was skipped.",
+    )
+
+
+def collect_streamed_transcript(
+    chunks: object, generation_started_at: float
+) -> str:
+    """Collect transcript text from Gemini Generate Content response chunks."""
+    text_parts: list[str] = []
+
+    for chunk in chunks:
+        elapsed_seconds = time.monotonic() - generation_started_at
+        if elapsed_seconds >= GEMINI_GENERATION_TIMEOUT_SECONDS:
+            raise GeminiIntegrationError(
+                "Gemini transcript stream did not complete within "
+                f"{GEMINI_GENERATION_TIMEOUT_SECONDS}s."
+            )
+
+        text = getattr(chunk, "text", "") or ""
+        if text:
+            text_parts.append(text)
+
+    transcript = "".join(text_parts)
+    if not transcript.strip():
+        raise GeminiIntegrationError("Gemini returned an empty transcript.")
+    return transcript
+
+
 def generate_gemini_transcript(
     audio_input: AudioInput, audio_processing: AudioProcessingResult
 ) -> GeminiTranscript:
@@ -102,7 +141,7 @@ def generate_gemini_transcript(
             "Missing dependency 'google-genai'. Install requirements.txt first."
         ) from error
 
-    client = genai.Client(
+    upload_client = genai.Client(
         api_key=os.environ[API_KEY_NAME],
         http_options={
             "timeout": GEMINI_UPLOAD_TIMEOUT_MS,
@@ -117,7 +156,7 @@ def generate_gemini_transcript(
         f"(timeout {GEMINI_UPLOAD_TIMEOUT_MS // 1000}s)."
     )
     try:
-        uploaded_file = client.files.upload(file=audio_processing.upload_path)
+        uploaded_file = upload_client.files.upload(file=audio_processing.upload_path)
     except Exception as error:
         elapsed_seconds = time.monotonic() - upload_started_at
         print_gemini_timing(
@@ -135,6 +174,13 @@ def generate_gemini_transcript(
     )
 
     last_error: Exception | None = None
+    generation_client = genai.Client(
+        api_key=os.environ[API_KEY_NAME],
+        http_options={
+            "timeout": GEMINI_GENERATION_TIMEOUT_MS,
+            "retry_options": {"attempts": 1},
+        },
+    )
     for model in GEMINI_MODELS:
         generation_started_at = time.monotonic()
         print_gemini_timing(
@@ -142,21 +188,21 @@ def generate_gemini_transcript(
             f"{model} (timeout {GEMINI_GENERATION_TIMEOUT_SECONDS}s)."
         )
         try:
-            response = client.interactions.create(
+            chunks = generation_client.models.generate_content_stream(
                 model=model,
-                input=[
-                    {"type": "text", "text": prompt},
-                    {
-                        "type": "audio",
-                        "uri": uploaded_file.uri,
-                        "mime_type": uploaded_file.mime_type,
-                    },
-                ],
-                timeout=GEMINI_GENERATION_TIMEOUT_SECONDS,
+                contents=[prompt, uploaded_file],
+                config={
+                    "thinking_config": {"thinking_level": "low"},
+                    "automatic_function_calling": {"disable": True},
+                },
             )
-            response_text = getattr(response, "output_text", "") or ""
-            if not response_text.strip():
-                raise GeminiIntegrationError("Gemini returned an empty transcript.")
+            print_gemini_timing(
+                f"transcript content stream opened for {audio_input.path.name} "
+                f"with {model} (low thinking)."
+            )
+            response_text = collect_streamed_transcript(
+                chunks, generation_started_at
+            )
             elapsed_seconds = time.monotonic() - generation_started_at
             print_gemini_timing(
                 f"transcript generation completed for {audio_input.path.name} with "
@@ -185,7 +231,9 @@ def transcribe_audio_file(audio_file: str) -> TranscriptionOutcome:
         audio_input = validate_audio_file(audio_file)
         require_audio_tools()
         audio_metadata = get_audio_metadata(audio_input)
-        audio_processing = plan_audio_processing(audio_input, audio_metadata)
+        audio_processing = prepare_transcript_audio(
+            audio_input, audio_metadata.original_duration_seconds
+        )
         transcript = generate_gemini_transcript(audio_input, audio_processing)
         output_path = write_transcript(audio_input, transcript.text)
     finally:
