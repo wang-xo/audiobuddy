@@ -870,9 +870,10 @@ def is_transient_gemini_error(error: Exception) -> bool:
             "api_error",
             "too_many_requests",
             "server disconnected",
-            "deadline_exceeded",
-            "deadline expired",
-            "timed out",
+              "deadline_exceeded",
+              "deadline expired",
+              "stream did not complete",
+              "timed out",
             "timeout",
         )
     )

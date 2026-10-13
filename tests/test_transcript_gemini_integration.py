@@ -16,6 +16,7 @@ from summarize_audio import (
     GEMINI_UPLOAD_TIMEOUT_MS,
     AudioInput,
     AudioProcessingResult,
+    GeminiIntegrationError,
 )
 from transcribe_audio import generate_gemini_transcript
 
@@ -146,6 +147,37 @@ class TranscriptGeminiIntegrationTests(unittest.TestCase):
             )
 
         self.assertEqual(transcript.model, "gemini-3.6-flash")
+
+    def test_stalled_stream_falls_back_to_the_next_model(self) -> None:
+        chunks = [SimpleNamespace(text="[00:00:00] Speaker 1: Hello.\n")]
+        client, genai = self.fake_genai([[], chunks])
+
+        with (
+            patch.dict(sys.modules, {"google": SimpleNamespace(genai=genai)}),
+            patch.dict(os.environ, {API_KEY_NAME: "test-key"}),
+            patch("transcribe_audio.print_gemini_timing"),
+            patch(
+                "transcribe_audio.collect_streamed_transcript",
+                side_effect=[
+                    GeminiIntegrationError(
+                        "Gemini transcript stream did not complete within 600s."
+                    ),
+                    "[00:00:00] Speaker 1: Hello.\n",
+                ],
+            ),
+        ):
+            transcript = generate_gemini_transcript(
+                self.audio_input, self.audio_processing
+            )
+
+        self.assertEqual(transcript.model, "gemini-3.6-flash")
+        self.assertEqual(
+            [
+                request.kwargs["model"]
+                for request in client.models.generate_content_stream.call_args_list
+            ],
+            ["gemini-3.8-flash", "gemini-3.6-flash"],
+        )
 
 
 if __name__ == "__main__":

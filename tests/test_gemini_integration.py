@@ -131,6 +131,13 @@ class GeminiIntegrationTests(unittest.TestCase):
             )
         )
 
+    def test_stalled_transcript_streams_are_transient_for_file_level_retries(self) -> None:
+        self.assertTrue(
+            is_transient_gemini_error(
+                GeminiIntegrationError("Gemini transcript stream did not complete within 600s.")
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
