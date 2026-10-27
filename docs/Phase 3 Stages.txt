@@ -17,8 +17,9 @@ master-summary.md.
 
 2. Add a separate one-file command.
    - Create transcribe_audio.py with exactly one explicit MP3 or OGG input.
-   - Reuse local validation, FFmpeg silence trimming, Gemini timeouts,
+   - Reuse local validation, FFmpeg metadata inspection, Gemini timeouts,
      diagnostics, and primary/fallback models.
+   - Do not trim silence: timestamps must remain aligned to the original audio.
    - Do not add a scan or rescan mode in this phase.
 
 3. Write transcript output safely.
@@ -39,14 +40,14 @@ master-summary.md.
 Completed 3 October 2026:
 
 - Added the separate transcribe_audio.py command and transcript-prompt.md.
-- The command reuses local validation, silence trimming, Gemini diagnostics,
-  five-minute upload timeout, ten-minute generation timeout, and the model
+- The command reuses local validation, FFmpeg metadata inspection, Gemini
+  diagnostics, five-minute upload timeout, ten-minute generation timeout, and the model
   fallback order that was current at the time of completion. The current model
   decision is maintained separately in Gemini Model Decision.txt.
 - Local verification passed with 43 tests.
 - The controlled default-file smoke test completed with Gemini 3.6 Flash,
-  generated a timestamped individual transcript, and made no master-summary
-  reference to the transcript output.
+  generated a timestamped individual transcript, preserved the original audio
+  timeline, and made no master-summary reference to the transcript output.
 - Added run-audiobuddy-transcript.bat. It prompts for a filename from the
   established input folder, verifies that file exists locally, and preserves
   the final command output for review.

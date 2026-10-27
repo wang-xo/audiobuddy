@@ -1,13 +1,18 @@
 # AudioBuddy
 
-AudioBuddy is a small local Python CLI tool that summarizes one MP3 or OGG audio file
-with the Google Gemini API.
+AudioBuddy is a local Python CLI for turning timestamp-named MP3 and OGG
+recordings into English meeting summaries or turn-by-turn transcripts with the
+Google Gemini API.
 
-## Phase 1
+It supports three summary workflows: process one named file, scan the configured
+input folder for new recordings, or deliberately rescan the complete input
+archive after changing `prompt.md`. It also has an independent, one-file
+transcript command. Summary results are maintained both as individual Markdown
+files and in a chronological master summary; transcript results stay separate.
 
-Phase 1 supports a single local MP3 or OGG file at a time.
+## Summary Processing
 
-The script:
+For each summary, AudioBuddy:
 
 - reads `GEMINI_API_KEY` from the environment or a local `.env` file
 - rejects missing files and unsupported audio formats
@@ -44,13 +49,15 @@ Do not commit `.env`. It is ignored by Git.
 
 ## Usage
 
-Run the script with one MP3 or OGG file path:
+Summarize one MP3 or OGG file explicitly, including an intentional reprocessing
+of an existing file:
 
 ```powershell
 python summarize_audio.py "D:\Documents\Personal\audio\in\2026-08-30 11_10_13.mp3"
 ```
 
-To process only audio files not already represented in the master summary:
+To scan the top level of `D:\Documents\Personal\audio\in` and process only valid
+files not already represented in the master summary:
 
 ```powershell
 .venv\Scripts\python.exe summarize_audio.py --scan
@@ -63,11 +70,15 @@ To deliberately regenerate every valid top-level input file using the current
 .venv\Scripts\python.exe summarize_audio.py --rescan
 ```
 
-AudioBuddy first reports how many valid files it selected and how many entries
-it skipped. It then asks for confirmation before starting any paid Gemini work.
-Only `y` or `yes` proceeds; every other response cancels without processing.
-Use `--rescan` after an intentional prompt change or when you otherwise want
-fresh summaries for the entire input archive.
+`--scan` processes selected files sequentially in chronological filename order.
+It skips files already represented in the master, reports invalid inputs, and
+continues past per-file failures. Transient Gemini failures in a scan retry up
+to three times after 2, 4, and 8 seconds.
+
+`--rescan` first reports its selection and asks for confirmation before starting
+paid Gemini work. Only `y` or `yes` proceeds; every other response cancels
+without processing. Use it after an intentional `prompt.md` change or whenever
+you need fresh summaries for the whole input archive.
 
 You can double-click `run-audiobuddy-scan.bat` to scan for new files, or
 `run-audiobuddy-rescan.bat` to start the same confirmed rescan flow. Both leave
@@ -107,7 +118,7 @@ If that file already exists, AudioBuddy creates a numbered alternative:
 2026-08-30 11_10_13-summary-1.md
 ```
 
-Phase 2-2 also maintains a master summary file:
+AudioBuddy also maintains a master summary file:
 
 ```text
 D:\Documents\Personal\audio\out\master-summary.md
@@ -209,26 +220,31 @@ mark confident guesses in brackets, and mark wholly unintelligible speech as
 
 AudioBuddy writes timestamped Gemini status messages to the terminal for each
 upload and model-generation attempt. Upload requests have a five-minute
-deadline; summary and transcript generation requests have ten-minute deadlines. Transcript
-generation uses Gemini's Generate Content streaming endpoint with low thinking,
-which is appropriate for faithful transcription and reduces time to first output.
-A deadline failure is treated as transient, so the existing retry policy can
-retry the same source file. AudioBuddy tries Gemini 3.8 Flash first, then Gemini
-3.6 Flash when the first model returns a transient failure. This model order is
-scheduled for review on 1 April 2027; see `docs/Gemini Model Decision.txt` for
-the reason.
+deadline; summary and transcript generation requests have ten-minute deadlines.
+Transcript generation uses Gemini's Generate Content streaming endpoint with
+low thinking to reduce latency. A transient model failure, including a stalled
+transcript stream, tries Gemini 3.8 Flash first and Gemini 3.6 Flash second.
+For batch `--scan` and `--rescan` work, a source file that still fails after
+that model fallback receives up to three additional attempts after 2, 4, and 8
+seconds. This model order is scheduled for review on 1 April 2027; see
+`docs/Gemini Model Decision.txt` for the reason.
 
 ## Silence Trimming
 
-For files longer than 10 minutes, AudioBuddy uses FFmpeg to remove long silence
-before upload. The Phase 2-1 default is conservative: silence must last at least
-30 seconds and be at or below `-30dB`.
+For summary files longer than 10 minutes, AudioBuddy uses FFmpeg to remove long
+silence before upload. The default is conservative: silence must last at least
+30 seconds and be at or below `-30dB`. Transcripts never trim silence, so their
+timestamps remain tied to the original recording.
 
 The original audio file is never modified.
 Temporary trimmed files are deleted after processing completes or fails.
 
-## Phase 2 Ideas
+## Project Status
 
-Still to consider:
+Phases 1 through 3 are complete: single-file summaries, silence handling,
+master-summary tracking, `--scan`, confirmed `--rescan`, and the independent
+single-file transcript command are available now. Phase 4 remains planning for
+a friend-accessible web workflow; see `docs/Phase 4 Plan.txt`.
 
-- Split longer audio into smaller chunks, for example 30-minute segments.
+A possible later enhancement is splitting unusually long recordings into
+smaller chunks.

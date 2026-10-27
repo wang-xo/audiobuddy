@@ -1,8 +1,28 @@
+AudioBuddy Status - 27 October 2026
+
+Completed capabilities:
+
+- Summary command for one MP3 or OGG file, plus top-level `--scan` and
+  confirmation-gated `--rescan` commands.
+- Individual Markdown summaries and a chronological, replace-safe
+  `master-summary.md`.
+- Conservative silence trimming for long summary recordings only.
+- Separate one-file MP3/OGG transcript command that preserves the original
+  audio timeline and does not update the master summary.
+- Gemini 3.8 Flash primary model, with Gemini 3.6 Flash fallback for transient
+  failures. Uploads have a five-minute deadline and generation has a ten-minute
+  deadline.
+
+Phase 4 web access remains planning only. The remainder of this document is the
+historical scope and requirements record for the delivered local tool.
+
+Historical original scope:
+
 Build a very small local Python CLI tool for summarizing audio files using the Google Gemini API.
 
 Usage:
 
-python summarize_audio.py /path/to/audio.m4a
+python summarize_audio.py /path/to/audio.mp3
 
 Phase 1 Requirements:
 
@@ -37,7 +57,7 @@ Notes:
   different than expected.
 - CLI output should indicate success or failure with reason.
 
-Future iterations (preserve these in the README as Phase 2, do not work on them until Phase 1 is complete):
+Delivered iterations:
 Phase 2-1. Parse the audio file and trim long silence.
 Phase 2-2. Summary tracking. Record the filenames, timestamps, and summaries in one master file. Individual summary files should still be created as they are today.
 Phase 2-3. Simplify the UX. Accept a command to scan the current input directory, identify any new audio files, and work with only the new ones.
@@ -48,8 +68,9 @@ Phase 3. Add a separate single-file transcription command.
 - Create transcribe_audio.py rather than adding a mode to summarize_audio.py.
 - Accept one timestamp-named MP3 or OGG input file and write an individual
   <original-name>-transcript.md file to D:\Documents\Personal\audio\out.
-- Reuse the established local validation, FFmpeg preprocessing, Gemini
-  timeouts, diagnostics, and model fallback behavior.
+- Reuse the established local validation, FFmpeg metadata inspection, Gemini
+  timeouts, diagnostics, and model fallback behavior. Do not trim transcripts,
+  because their timestamps must retain the original recording timeline.
 - Do not add transcript entries to master-summary.md.
 - Keep transcript-prompt.md as the authoritative transcription prompt.
 - Produce only chronological transcript turns in English. Translate

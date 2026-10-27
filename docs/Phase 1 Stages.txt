@@ -3,8 +3,8 @@ For Phase 1, I’d build and test in these breakpoints:
 
 1. **CLI + local validation**
    - Accept one file path argument.
-   - Reject missing path, nonexistent file, and non-`.mp3`.
-   - Parse filename date/time from `YYYY-MM-DD HH_MM_SS.mp3`.
+   - Reject missing path, nonexistent file, and unsupported file formats.
+   - Parse filename date/time from `YYYY-MM-DD HH_MM_SS.mp3` or `.ogg`.
    - Confirm `.env` / `GEMINI_API_KEY` can be loaded.
    - Test without calling Gemini yet.
 

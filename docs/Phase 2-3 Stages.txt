@@ -6,8 +6,8 @@ Phase 2-3 checkpoints:
 
 2. Discover and validate input files.
    - List only top-level entries.
-   - Accept valid timestamp-named MP3 files.
-   - Report and skip non-MP3 files and invalid filenames.
+   - Accept valid timestamp-named MP3 and OGG files.
+   - Report and skip unsupported files and invalid filenames.
    - Sort valid files chronologically by the timestamp in the filename.
 
 3. Select unprocessed files.

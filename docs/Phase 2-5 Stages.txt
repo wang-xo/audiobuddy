@@ -14,8 +14,8 @@ work begins.
 
 2. Discover every eligible input file.
    - Reuse the existing top-level discovery and validation behavior.
-   - Select all valid timestamp-named MP3 files, regardless of master status.
-   - Continue reporting and skipping invalid files, non-MP3 files, and directories.
+   - Select all valid timestamp-named MP3 and OGG files, regardless of master status.
+   - Continue reporting and skipping invalid files, unsupported files, and directories.
    - Sort selected files chronologically.
 
 3. Preflight before paid work.
