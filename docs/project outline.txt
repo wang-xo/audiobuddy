@@ -8,7 +8,7 @@ Completed capabilities:
   `master-summary.md`.
 - Conservative silence trimming for long summary recordings only.
 - Separate one-file MP3/OGG transcript command that preserves the original
-  audio timeline, chunks recordings longer than 90 minutes, and does not update
+  audio timeline, chunks recordings longer than about seven hours, and does not update
   the master summary.
 - Gemini 3.8 Flash primary model, with Gemini 3.6 Flash fallback for transient
   failures. Uploads have a five-minute deadline and generation has a ten-minute

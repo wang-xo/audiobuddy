@@ -40,7 +40,10 @@ from summarize_audio import (
 
 
 TRANSCRIPT_PROMPT_PATH = Path(__file__).resolve().parent / "transcript-prompt.md"
-TRANSCRIPT_CHUNK_DURATION_SECONDS = 90 * 60
+# Gemini's practical audio input limit is about nine hours. A seven-hour
+# target preserves speaker-label continuity for almost all recordings while
+# retaining room for prompt tokens and a small contextual overlap.
+TRANSCRIPT_CHUNK_DURATION_SECONDS = 7 * 60 * 60
 TRANSCRIPT_CHUNK_BOUNDARY_SEARCH_SECONDS = 5 * 60
 TRANSCRIPT_CHUNK_OVERLAP_SECONDS = 30
 TRANSCRIPT_TURN_PATTERN = re.compile(

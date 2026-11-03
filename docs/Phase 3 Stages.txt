@@ -54,8 +54,10 @@ Completed 3 October 2026:
 
 Extended 2 November 2026:
 
-- Recordings longer than 90 minutes are split into silence-aware source-timeline
+- Recordings longer than about seven hours are split into silence-aware source-timeline
   chunks with 30-second overlaps before transcription.
+- The seven-hour target reduces unnecessary cross-chunk speaker-label changes
+  while remaining below Gemini's practical audio-input limit.
 - AudioBuddy offsets and recombines validated chunk turns locally, preserving
   original-recording timestamps without an LLM rewrite.
 - Completed chunk transcripts are retained in a hidden output checkpoint after

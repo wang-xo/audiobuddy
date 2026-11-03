@@ -24,33 +24,31 @@ class TranscriptChunkingTests(unittest.TestCase):
     @patch("transcribe_audio.detect_long_silences")
     def test_plan_uses_nearby_silence_and_preserves_overlap(self, detect_long_silences) -> None:
         detect_long_silences.return_value = [
-            SilenceInterval(5350, 5410, 60),
+            SilenceInterval(25150, 25210, 60),
         ]
 
-        chunks = plan_transcript_chunks(Path("recording.ogg"), 17_000)
+        chunks = plan_transcript_chunks(Path("recording.ogg"), 80_000)
 
         self.assertGreaterEqual(len(chunks), 3)
         self.assertEqual(chunks[0].ownership_start_seconds, 0)
-        self.assertEqual(chunks[-1].ownership_end_seconds, 17_000)
-        self.assertEqual(chunks[0].ownership_end_seconds, 5380)
-        self.assertEqual(chunks[1].source_start_seconds, 5350)
-        self.assertEqual(chunks[0].source_end_seconds, 5410)
+        self.assertEqual(chunks[-1].ownership_end_seconds, 80_000)
+        self.assertEqual(chunks[0].ownership_end_seconds, 25180)
+        self.assertEqual(chunks[1].source_start_seconds, 25150)
+        self.assertEqual(chunks[0].source_end_seconds, 25210)
 
     @patch("transcribe_audio.detect_long_silences", return_value=[])
     def test_plan_avoids_a_tiny_final_chunk(self, _detect_long_silences) -> None:
-        chunks = plan_transcript_chunks(Path("recording.ogg"), 11_000)
+        chunks = plan_transcript_chunks(Path("recording.ogg"), 50_000)
 
         self.assertEqual(len(chunks), 2)
-        self.assertEqual(chunks[0].ownership_end_seconds, 5400)
-        self.assertEqual(chunks[1].ownership_end_seconds, 11_000)
+        self.assertEqual(chunks[0].ownership_end_seconds, 25_200)
+        self.assertEqual(chunks[1].ownership_end_seconds, 50_000)
 
     @patch("transcribe_audio.detect_long_silences", return_value=[])
-    def test_plan_splits_a_two_hour_recording(self, _detect_long_silences) -> None:
+    def test_plan_keeps_a_two_hour_recording_as_one_request(self, _detect_long_silences) -> None:
         chunks = plan_transcript_chunks(Path("recording.ogg"), 7_548)
 
-        self.assertEqual(len(chunks), 2)
-        self.assertEqual(chunks[0].ownership_end_seconds, 5400)
-        self.assertEqual(chunks[1].ownership_start_seconds, 5400)
+        self.assertEqual(chunks, [])
 
     def test_recombine_offsets_timestamps_and_owns_each_overlap_once(self) -> None:
         first = TranscriptChunk(
