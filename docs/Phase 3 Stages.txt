@@ -51,3 +51,12 @@ Completed 3 October 2026:
 - Added run-audiobuddy-transcript.bat. It prompts for a filename from the
   established input folder, verifies that file exists locally, and preserves
   the final command output for review.
+
+Extended 2 November 2026:
+
+- Recordings longer than 90 minutes are split into silence-aware source-timeline
+  chunks with 30-second overlaps before transcription.
+- AudioBuddy offsets and recombines validated chunk turns locally, preserving
+  original-recording timestamps without an LLM rewrite.
+- Completed chunk transcripts are retained in a hidden output checkpoint after
+  a failure and reused by a later retry; successful runs remove the checkpoint.

@@ -14,6 +14,7 @@ class TranscriptPromptTests(unittest.TestCase):
         prompt = load_transcript_prompt()
 
         self.assertIn("fully transcribe everything", prompt)
+        self.assertIn("{chunk_context}", prompt)
         self.assertIn("complete transcript in English", prompt)
         self.assertIn("[HH:MM:SS] Speaker 1: Spoken content", prompt)
         self.assertIn("use [00:16:35], never [16:35]", prompt)

@@ -179,6 +179,25 @@ class TranscriptGeminiIntegrationTests(unittest.TestCase):
             ["gemini-3.8-flash", "gemini-3.6-flash"],
         )
 
+    def test_malformed_turns_fall_back_to_the_next_model(self) -> None:
+        client, genai = self.fake_genai(
+            [
+                [SimpleNamespace(text="Speaker 1: Missing timestamp.\n")],
+                [SimpleNamespace(text="[00:00:00] Speaker 1: Valid turn.\n")],
+            ]
+        )
+
+        with (
+            patch.dict(sys.modules, {"google": SimpleNamespace(genai=genai)}),
+            patch.dict(os.environ, {API_KEY_NAME: "test-key"}),
+            patch("transcribe_audio.print_gemini_timing"),
+        ):
+            transcript = generate_gemini_transcript(
+                self.audio_input, self.audio_processing
+            )
+
+        self.assertEqual(transcript.model, "gemini-3.6-flash")
+
 
 if __name__ == "__main__":
     unittest.main()

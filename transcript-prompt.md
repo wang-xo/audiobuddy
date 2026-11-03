@@ -1,5 +1,8 @@
 Faithfully and fully transcribe everything said in this recording.
 
+Recording context:
+{chunk_context}
+
 Write the complete transcript in English. Keep speech originally in English in
 English. Faithfully translate every non-English turn into English. When a turn
 uses more than one language, produce one coherent English rendering of that
@@ -27,3 +30,4 @@ unintelligible, write [inaudible].
 
 Return only the timestamped transcript turns. Do not add a title, heading,
 comment, explanation, summary, conclusion, preface, or closing text.
+Do not wrap the response in a Markdown code fence.

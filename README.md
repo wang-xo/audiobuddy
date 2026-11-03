@@ -202,6 +202,14 @@ to, replace, or rebuild `master-summary.md`.
 Transcripts deliberately skip silence trimming so their timestamps remain tied
 to the original recording timeline.
 
+Recordings longer than 90 minutes are transcribed in source-timeline chunks.
+AudioBuddy prefers a nearby long-silence boundary, adds a 30-second overlap for
+context, offsets the returned turn timestamps locally, and recombines the turns
+without asking Gemini to rewrite them. If a chunk fails, its completed chunk
+results are kept in a hidden checkpoint directory in the output folder so a
+later retry resumes the remaining work. That directory is removed after a
+successful final transcript is written.
+
 `transcript-prompt.md` is the authoritative source for the transcript prompt.
 It instructs Gemini to return only timestamped turns, translate non-English
 speech faithfully to English, use stable numbered speaker labels by default,
