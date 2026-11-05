@@ -338,6 +338,21 @@ def transcript_checkpoint_path(audio_input: AudioInput) -> Path:
     return transcript_checkpoint_directory(audio_input) / "manifest.json"
 
 
+def rejected_transcript_response_path(audio_input: AudioInput, model: str) -> Path:
+    """Return the hidden diagnostic path for a completed but invalid response."""
+    return transcript_checkpoint_directory(audio_input) / f"rejected-{model}.txt"
+
+
+def preserve_rejected_transcript_response(
+    audio_input: AudioInput, model: str, response_text: str
+) -> Path:
+    """Keep a completed response for format diagnosis after validation rejects it."""
+    response_path = rejected_transcript_response_path(audio_input, model)
+    response_path.parent.mkdir(parents=True, exist_ok=True)
+    response_path.write_text(response_text, encoding="utf-8")
+    return response_path
+
+
 def transcript_chunk_path(checkpoint_directory: Path, chunk: TranscriptChunk) -> Path:
     return checkpoint_directory / f"chunk-{chunk.index + 1:03d}.ogg"
 
@@ -496,7 +511,7 @@ def generate_gemini_transcript(
         f"{upload_elapsed_seconds:.1f}s."
     )
 
-    last_error: Exception | None = None
+    model_failures: list[tuple[str, Exception]] = []
     generation_client = genai.Client(
         api_key=os.environ[API_KEY_NAME],
         http_options={
@@ -523,10 +538,20 @@ def generate_gemini_transcript(
                 f"transcript content stream opened for {audio_input.path.name} "
                 f"with {model} (low thinking)."
             )
-            response_text = normalize_transcript_response(collect_streamed_transcript(
+            raw_response_text = collect_streamed_transcript(
                 chunks, generation_started_at
-            ))
-            parse_transcript_turns(response_text)
+            )
+            response_text = normalize_transcript_response(raw_response_text)
+            try:
+                parse_transcript_turns(response_text)
+            except GeminiIntegrationError as error:
+                response_path = preserve_rejected_transcript_response(
+                    audio_input, model, raw_response_text
+                )
+                raise GeminiIntegrationError(
+                    f"{error} The completed response was retained for diagnosis: "
+                    f"{response_path}"
+                ) from error
             elapsed_seconds = time.monotonic() - generation_started_at
             print_gemini_timing(
                 f"transcript generation completed for {audio_input.path.name} with "
@@ -534,18 +559,25 @@ def generate_gemini_transcript(
             )
             return GeminiTranscript(text=response_text, model=model)
         except Exception as error:
-            last_error = error
+            model_failures.append((model, error))
             elapsed_seconds = time.monotonic() - generation_started_at
             print_gemini_timing(
                 f"transcript generation failed for {audio_input.path.name} with "
-                f"{model} after {elapsed_seconds:.1f}s: {type(error).__name__}."
+                f"{model} after {elapsed_seconds:.1f}s: {type(error).__name__}: "
+                f"{error}"
             )
             if not is_transient_gemini_error(error):
                 break
 
-    if last_error is None:
+    if not model_failures:
         raise GeminiIntegrationError("No Gemini model was configured.")
-    raise GeminiIntegrationError(str(last_error)) from last_error
+    failure_details = "; ".join(
+        f"{model}: {type(error).__name__}: {error}"
+        for model, error in model_failures
+    )
+    raise GeminiIntegrationError(
+        f"Gemini transcript generation failed. {failure_details}"
+    ) from model_failures[-1][1]
 
 
 def read_chunk_transcript(result_path: Path) -> GeminiTranscript | None:
@@ -730,7 +762,6 @@ def generate_chunked_transcript(
 
 def transcribe_audio_file(audio_file: str) -> TranscriptionOutcome:
     audio_processing: AudioProcessingResult | None = None
-    checkpoint_directory: Path | None = None
 
     try:
         audio_input = validate_audio_file(audio_file)
@@ -743,15 +774,13 @@ def transcribe_audio_file(audio_file: str) -> TranscriptionOutcome:
             audio_metadata.original_duration_seconds
             > TRANSCRIPT_CHUNK_DURATION_SECONDS
         ):
-            checkpoint_directory = transcript_checkpoint_directory(audio_input)
             transcript = generate_chunked_transcript(
                 audio_input, audio_metadata.original_duration_seconds
             )
         else:
             transcript = generate_gemini_transcript(audio_input, audio_processing)
         output_path = write_transcript(audio_input, transcript.text)
-        if checkpoint_directory is not None:
-            shutil.rmtree(checkpoint_directory, ignore_errors=True)
+        shutil.rmtree(transcript_checkpoint_directory(audio_input), ignore_errors=True)
     finally:
         cleanup_path = cleanup_temporary_audio(audio_processing)
 

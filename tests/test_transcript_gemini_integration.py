@@ -6,6 +6,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock, call, patch
 
@@ -197,6 +198,50 @@ class TranscriptGeminiIntegrationTests(unittest.TestCase):
             )
 
         self.assertEqual(transcript.model, "gemini-3.6-flash")
+
+    def test_rejected_response_is_preserved_for_diagnosis(self) -> None:
+        malformed_response = "Speaker 1: Missing timestamp.\n"
+        client, genai = self.fake_genai(
+            [
+                [SimpleNamespace(text=malformed_response)],
+                [SimpleNamespace(text="[00:00:00] Speaker 1: Valid turn.\n")],
+            ]
+        )
+
+        with TemporaryDirectory() as temporary_directory:
+            with (
+                patch.dict(sys.modules, {"google": SimpleNamespace(genai=genai)}),
+                patch.dict(os.environ, {API_KEY_NAME: "test-key"}),
+                patch("transcribe_audio.OUTPUT_DIR", Path(temporary_directory)),
+                patch("transcribe_audio.print_gemini_timing"),
+            ):
+                generate_gemini_transcript(self.audio_input, self.audio_processing)
+
+            response_path = (
+                Path(temporary_directory)
+                / ".2026-08-30 11_10_13-transcript-checkpoint"
+                / "rejected-gemini-3.8-flash.txt"
+            )
+            self.assertEqual(response_path.read_text(encoding="utf-8"), malformed_response)
+
+    def test_final_error_reports_each_model_failure(self) -> None:
+        client, genai = self.fake_genai(
+            [
+                [SimpleNamespace(text="Speaker 1: Missing timestamp.\n")],
+                TimeoutError("fallback request timed out"),
+            ]
+        )
+
+        with (
+            patch.dict(sys.modules, {"google": SimpleNamespace(genai=genai)}),
+            patch.dict(os.environ, {API_KEY_NAME: "test-key"}),
+            patch("transcribe_audio.print_gemini_timing"),
+        ):
+            with self.assertRaisesRegex(
+                GeminiIntegrationError,
+                "gemini-3.8-flash.*invalid turn format.*gemini-3.6-flash.*fallback request timed out",
+            ):
+                generate_gemini_transcript(self.audio_input, self.audio_processing)
 
 
 if __name__ == "__main__":

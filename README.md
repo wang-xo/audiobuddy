@@ -212,6 +212,11 @@ kept in a hidden checkpoint directory in the output folder so a later retry
 resumes the remaining work. That directory is removed after a successful final
 transcript is written.
 
+If Gemini completes a response but AudioBuddy rejects its turn format, the raw
+response is retained in that same hidden checkpoint directory for diagnosis.
+The terminal reports the validation reason for each attempted model; a later
+successful transcript removes the checkpoint and its diagnostics.
+
 `transcript-prompt.md` is the authoritative source for the transcript prompt.
 It instructs Gemini to return only timestamped turns, translate non-English
 speech faithfully to English, use stable numbered speaker labels by default,
