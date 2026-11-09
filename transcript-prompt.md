@@ -8,15 +8,14 @@ English. Faithfully translate every non-English turn into English. When a turn
 uses more than one language, produce one coherent English rendering of that
 turn without summarizing, interpreting, or editorializing.
 
-Preserve the exact chronological order of all speech. Start each turn with the
-timestamp at which it begins and a speaker label, using this form:
+Preserve the exact chronological order of all speech. Return one JSON object
+with exactly one key, `turns`. Its value must be a nonempty array of objects,
+each with exactly these string keys: `timestamp`, `speaker`, and `content`.
 
-[HH:MM:SS] Speaker 1: Spoken content
-
-Use exactly two digits for each timestamp component, including the hour. For
-example, use [00:16:35], never [16:35] or [0:16:35]. Every nonempty output line
-must begin with a timestamp and speaker label in this exact form. Do not emit a
-speaker label on a line without its timestamp.
+`timestamp` must be the turn start in exactly `HH:MM:SS` form, including two
+digits for every component. `speaker` must be a stable numbered label such as
+`Speaker 1` unless a specific identity is reliably evident. `content` is the
+complete English rendering of that turn.
 
 Use stable numbered speaker labels such as Speaker 1, Speaker 2, and Speaker 3
 by default. Use a specific speaker identity only when it is reliably evident
@@ -28,6 +27,6 @@ clearly intelligible but can be guessed with confidence, transcribe the guess
 in square brackets, for example [project timeline]. When speech is wholly
 unintelligible, write [inaudible].
 
-Return only the timestamped transcript turns. Do not add a title, heading,
-comment, explanation, summary, conclusion, preface, or closing text.
-Do not wrap the response in a Markdown code fence.
+Return only the JSON object. Do not add a title, heading, comment, explanation,
+summary, conclusion, preface, closing text, Markdown, or any fields other than
+the required `turns` array and its turn objects.

@@ -19,7 +19,7 @@ from summarize_audio import (
     AudioProcessingResult,
     GeminiIntegrationError,
 )
-from transcribe_audio import generate_gemini_transcript
+from transcribe_audio import TRANSCRIPT_SAFE_MODE_SCHEMA, generate_gemini_transcript
 
 
 class TranscriptGeminiIntegrationTests(unittest.TestCase):
@@ -51,8 +51,8 @@ class TranscriptGeminiIntegrationTests(unittest.TestCase):
 
     def test_uses_the_authoritative_prompt_and_explicit_deadline(self) -> None:
         chunks = [
-            SimpleNamespace(text="[00:00:00] Speaker 1: "),
-            SimpleNamespace(text="Hello.\n"),
+            SimpleNamespace(text='{"turns":[{"timestamp":"00:00:00","speaker":"Speaker 1",'),
+            SimpleNamespace(text='"content":"Hello."}]}'),
         ]
         client, genai = self.fake_genai([chunks])
 
@@ -94,11 +94,13 @@ class TranscriptGeminiIntegrationTests(unittest.TestCase):
             {
                 "thinking_config": {"thinking_level": "low"},
                 "automatic_function_calling": {"disable": True},
+                "response_mime_type": "application/json",
+                "response_json_schema": TRANSCRIPT_SAFE_MODE_SCHEMA,
             },
         )
 
     def test_transient_failure_falls_back_to_the_next_model(self) -> None:
-        chunks = [SimpleNamespace(text="[00:00:00] Speaker 1: Hello.\n")]
+        chunks = [SimpleNamespace(text='{"turns":[{"timestamp":"00:00:00","speaker":"Speaker 1","content":"Hello."}]}')]
         client, genai = self.fake_genai([TimeoutError("request timed out"), chunks])
 
         with (
@@ -133,7 +135,7 @@ class TranscriptGeminiIntegrationTests(unittest.TestCase):
                 generate_gemini_transcript(self.audio_input, self.audio_processing)
 
     def test_generation_deadline_errors_are_transient_for_model_fallback(self) -> None:
-        chunks = [SimpleNamespace(text="[00:00:00] Speaker 1: Hello.\n")]
+        chunks = [SimpleNamespace(text='{"turns":[{"timestamp":"00:00:00","speaker":"Speaker 1","content":"Hello."}]}')]
         client, genai = self.fake_genai(
             [RuntimeError("504 DEADLINE_EXCEEDED"), chunks]
         )
@@ -163,7 +165,7 @@ class TranscriptGeminiIntegrationTests(unittest.TestCase):
                     GeminiIntegrationError(
                         "Gemini transcript stream did not complete within 600s."
                     ),
-                    "[00:00:00] Speaker 1: Hello.\n",
+                    '{"turns":[{"timestamp":"00:00:00","speaker":"Speaker 1","content":"Hello."}]}',
                 ],
             ),
         ):
@@ -183,8 +185,8 @@ class TranscriptGeminiIntegrationTests(unittest.TestCase):
     def test_malformed_turns_fall_back_to_the_next_model(self) -> None:
         client, genai = self.fake_genai(
             [
-                [SimpleNamespace(text="Speaker 1: Missing timestamp.\n")],
-                [SimpleNamespace(text="[00:00:00] Speaker 1: Valid turn.\n")],
+                [SimpleNamespace(text="not json")],
+                [SimpleNamespace(text='{"turns":[{"timestamp":"00:00:00","speaker":"Speaker 1","content":"Valid turn."}]}')],
             ]
         )
 
@@ -200,11 +202,11 @@ class TranscriptGeminiIntegrationTests(unittest.TestCase):
         self.assertEqual(transcript.model, "gemini-3.6-flash")
 
     def test_rejected_response_is_preserved_for_diagnosis(self) -> None:
-        malformed_response = "Speaker 1: Missing timestamp.\n"
+        malformed_response = "not json"
         client, genai = self.fake_genai(
             [
                 [SimpleNamespace(text=malformed_response)],
-                [SimpleNamespace(text="[00:00:00] Speaker 1: Valid turn.\n")],
+                [SimpleNamespace(text='{"turns":[{"timestamp":"00:00:00","speaker":"Speaker 1","content":"Valid turn."}]}')],
             ]
         )
 
@@ -227,7 +229,7 @@ class TranscriptGeminiIntegrationTests(unittest.TestCase):
     def test_final_error_reports_each_model_failure(self) -> None:
         client, genai = self.fake_genai(
             [
-                [SimpleNamespace(text="Speaker 1: Missing timestamp.\n")],
+                [SimpleNamespace(text="not json")],
                 TimeoutError("fallback request timed out"),
             ]
         )
@@ -239,7 +241,7 @@ class TranscriptGeminiIntegrationTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(
                 GeminiIntegrationError,
-                "gemini-3.8-flash.*invalid turn format.*gemini-3.6-flash.*fallback request timed out",
+                "gemini-3.8-flash.*invalid JSON.*gemini-3.6-flash.*fallback request timed out",
             ):
                 generate_gemini_transcript(self.audio_input, self.audio_processing)
 

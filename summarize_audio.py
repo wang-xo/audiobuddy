@@ -874,6 +874,8 @@ def is_transient_gemini_error(error: Exception) -> bool:
               "deadline expired",
               "stream did not complete",
             "invalid turn format",
+            "safe mode returned invalid",
+            "safe mode must return",
             "timestamps are not in chronological order",
               "timed out",
             "timeout",

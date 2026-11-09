@@ -59,6 +59,11 @@ TRANSCRIPT_PREAMBLE_PATTERN = re.compile(
     r"^(?:#+\s*)?(?:complete\s+)?(?:turn-by-turn\s+)?transcript:?$",
     re.IGNORECASE,
 )
+TRANSCRIPT_SAFE_MODE_SCHEMA = {
+    "type": "object",
+    "properties": {"turns": {"type": "array", "items": {"type": "object", "properties": {"timestamp": {"type": "string"}, "speaker": {"type": "string"}, "content": {"type": "string"}}, "required": ["timestamp", "speaker", "content"]}}},
+    "required": ["turns"],
+}
 
 
 @dataclass(frozen=True)
@@ -222,6 +227,33 @@ def parse_transcript_turns(transcript: str) -> list[TranscriptTurn]:
     if not turns:
         raise GeminiIntegrationError("Gemini returned an empty transcript.")
     return turns
+
+
+def render_safe_mode_transcript(response_text: str) -> str:
+    """Validate a JSON Safe Mode response and render Markdown transcript turns."""
+    try:
+        payload = json.loads(response_text)
+    except json.JSONDecodeError as error:
+        raise GeminiIntegrationError(f"Gemini Transcript Safe Mode returned invalid JSON: {error.msg}.") from error
+    if not isinstance(payload, dict) or set(payload) != {"turns"} or not isinstance(payload["turns"], list) or not payload["turns"]:
+        raise GeminiIntegrationError("Gemini Transcript Safe Mode must return one object with a nonempty 'turns' array.")
+    lines: list[str] = []
+    for index, turn in enumerate(payload["turns"], start=1):
+        if not isinstance(turn, dict) or set(turn) != {"timestamp", "speaker", "content"}:
+            raise GeminiIntegrationError(f"Gemini Transcript Safe Mode returned an invalid turn object at index {index}.")
+        timestamp, speaker, content = turn["timestamp"], turn["speaker"], turn["content"]
+        if not all(isinstance(value, str) for value in (timestamp, speaker, content)):
+            raise GeminiIntegrationError(f"Gemini Transcript Safe Mode returned invalid turn data at index {index}.")
+        if re.fullmatch(r"\d{2}:\d{2}", timestamp):
+            timestamp = f"00:{timestamp}"
+        if not re.fullmatch(r"\d{2}:\d{2}:\d{2}", timestamp):
+            raise GeminiIntegrationError(f"Gemini Transcript Safe Mode returned invalid timestamp at index {index}.")
+        if not speaker.strip() or ":" in speaker or not content.strip():
+            raise GeminiIntegrationError(f"Gemini Transcript Safe Mode returned an invalid speaker or content at index {index}.")
+        lines.append(f"[{timestamp}] {speaker.strip()}: {content.replace(chr(13), ' ').replace(chr(10), ' ').strip()}")
+    transcript = "\n".join(lines) + "\n"
+    parse_transcript_turns(transcript)
+    return transcript
 
 
 def unique_transcript_path(audio_path: Path, output_dir: Path) -> Path:
@@ -532,6 +564,8 @@ def generate_gemini_transcript(
                 config={
                     "thinking_config": {"thinking_level": "low"},
                     "automatic_function_calling": {"disable": True},
+                    "response_mime_type": "application/json",
+                    "response_json_schema": TRANSCRIPT_SAFE_MODE_SCHEMA,
                 },
             )
             print_gemini_timing(
@@ -541,9 +575,8 @@ def generate_gemini_transcript(
             raw_response_text = collect_streamed_transcript(
                 chunks, generation_started_at
             )
-            response_text = normalize_transcript_response(raw_response_text)
             try:
-                parse_transcript_turns(response_text)
+                response_text = render_safe_mode_transcript(raw_response_text)
             except GeminiIntegrationError as error:
                 response_path = preserve_rejected_transcript_response(
                     audio_input, model, raw_response_text
